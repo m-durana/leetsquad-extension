@@ -83,6 +83,7 @@
             ${submission ? `
               <span class="stat-item">${formatLanguage(submission.lang)}</span>
               <span class="stat-item">${submission.timestamp ? timeAgo(submission.timestamp) : ''}</span>
+              ${runtime ? `<span class="runtime-tag">${runtime}</span>` : ''}
             ` : '<span class="stat-item">Solved</span>'}
           </div>
         </div>
@@ -284,16 +285,32 @@
         ? await LeetCodeAPI.batchGetUserProfiles(solvedUsernames)
         : {};
 
-      const solvedUsers = solvedUsernames.map(username => {
+      const solvedUsers = await Promise.all(solvedUsernames.map(async (username) => {
         const sub = solvedMap[username].submission;
-        return {
+        const result = {
           username,
           profile: profiles[username] || null,
           submissions: sub ? [sub] : [],
-          runtime: sub?.runtime,
+          runtime: sub?.runtime || null,
           submissionId: sub?.id,
+          runtimePercentile: null,
         };
-      });
+
+        // Fetch percentile details if we have a submission ID
+        if (sub?.id) {
+          try {
+            const details = await LeetCodeAPI.getSubmissionDetails(sub.id);
+            if (details) {
+              result.runtimePercentile = details.runtimePercentile;
+              result.runtime = details.runtimeDisplay || sub.runtime;
+            }
+          } catch (e) {
+            // Continue without percentile — non-critical
+          }
+        }
+
+        return result;
+      }));
 
       // Step 4: Update storage cache for future sessions
       for (const username of solvedUsernames) {

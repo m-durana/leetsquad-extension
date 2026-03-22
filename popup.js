@@ -458,39 +458,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         item.style.transform = '';
         item.style.opacity = '';
       });
-    }, 400);
+    }, 900);
   }
 
-  // Animate activity filter
-  function animateActivityFilter() {
-    const items = activityFeed.querySelectorAll('.activity-item');
-
-    // Fade out current items
-    items.forEach(item => {
-      item.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
-      item.style.opacity = '0';
-      item.style.transform = 'translateX(-10px)';
-    });
-
-    // Load new filtered content after fade out
-    setTimeout(() => {
-      loadActivity(false);
-
-      // Fade in new items
-      setTimeout(() => {
-        const newItems = activityFeed.querySelectorAll('.activity-item');
-        newItems.forEach((item, index) => {
-          item.style.opacity = '0';
-          item.style.transform = 'translateX(10px)';
-          item.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
-
-          setTimeout(() => {
-            item.style.opacity = '1';
-            item.style.transform = 'translateX(0)';
-          }, index * 30);
-        });
-      }, 50);
-    }, 200);
+  // Reset activity data when friends list changes
+  function resetActivityData() {
+    activityDataLoaded = false;
+    allActivitySubmissions = [];
+    activityDisplayCount = ACTIVITY_PAGE_SIZE;
   }
 
   function renderLeaderboardItem(user, index, myUsername) {
@@ -518,7 +493,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
         <div class="lb-info">
           <div class="lb-name">
-            ${username}${isMe ? ' (You)' : ''}
+            <a href="https://leetcode.com/u/${username}" target="_blank" class="lb-name-link">${username}</a>${isMe ? ' <span class="you-tag">(You)</span>' : ''}
             ${globalRank ? `<span class="global-rank" title="Global LeetCode Rank">#${globalRank}</span>` : ''}
           </div>
           <div class="lb-breakdown">
@@ -535,130 +510,108 @@ document.addEventListener('DOMContentLoaded', async () => {
     `;
   }
 
-  // Activity state for infinite scroll
-  let activityPage = 0;
+  // Activity state
+  const ACTIVITY_PAGE_SIZE = 10;
+  let activityDisplayCount = ACTIVITY_PAGE_SIZE;
   let activityLoading = false;
   let allActivitySubmissions = [];
+  let activityDataLoaded = false;
 
-  // Load activity
-  async function loadActivity(loadMore = false) {
+  // Load activity — fetches data once, then renders pages from the cached list
+  async function loadActivity(showMore = false) {
     if (activityLoading) return;
     activityLoading = true;
 
-    if (!loadMore) {
+    if (showMore) {
+      activityDisplayCount += ACTIVITY_PAGE_SIZE;
+    } else {
+      activityDisplayCount = ACTIVITY_PAGE_SIZE;
+    }
+
+    // Only fetch from API on first load (not on "show more" or filter toggle)
+    if (!activityDataLoaded) {
       activityFeed.innerHTML = '<div class="loading">Loading activity...</div>';
-      activityPage = 0;
-      allActivitySubmissions = [];
-    }
 
-    const [friends, myUsername] = await Promise.all([
-      StorageManager.getFriends(),
-      StorageManager.getMyUsername()
-    ]);
+      const [friends, myUsername] = await Promise.all([
+        StorageManager.getFriends(),
+        StorageManager.getMyUsername()
+      ]);
 
-    const allUsers = myUsername ? [myUsername, ...friends] : friends;
+      const allUsers = myUsername ? [myUsername, ...friends] : friends;
 
-    if (allUsers.length === 0) {
-      activityFeed.innerHTML = `
-        <div class="empty-state">
-          <p>No activity yet</p>
-          <span>Add friends to see their activity!</span>
-        </div>
-      `;
-      activityLoading = false;
-      return;
-    }
-
-    // Load submissions sequentially to avoid rate limits
-    const allSubmissions = [];
-    for (const username of allUsers) {
-      // Try to get cached data first
-      let cached = await StorageManager.getCachedData(username);
-      const avatar = cached?.profile?.avatar;
-
-      // Try GraphQL for beats % data first
-      let graphqlSubs = null;
-      try {
-        graphqlSubs = await LeetCodeAPI.getRecentAcSubmissionsWithBeats(username, 50);
-      } catch (e) {
-        console.log('GraphQL failed for', username, 'using fallback');
+      if (allUsers.length === 0) {
+        activityFeed.innerHTML = `
+          <div class="empty-state">
+            <p>No activity yet</p>
+            <span>Add friends to see their activity!</span>
+          </div>
+        `;
+        activityLoading = false;
+        return;
       }
 
-      // If GraphQL succeeded, use that data (has runtime string)
-      if (graphqlSubs && graphqlSubs.length > 0) {
-        // Fetch percentile data for each submission (limit to first 10 to avoid too many API calls)
-        const userSubs = [];
-        for (let i = 0; i < graphqlSubs.length; i++) {
-          const s = graphqlSubs[i];
-          const subData = {
+      // Fetch submissions for all users (no percentile yet — fetched on demand)
+      const allSubmissions = [];
+      for (const username of allUsers) {
+        let cached = await StorageManager.getCachedData(username);
+        const avatar = cached?.profile?.avatar;
+
+        let graphqlSubs = null;
+        try {
+          graphqlSubs = await LeetCodeAPI.getRecentAcSubmissionsWithBeats(username, 50);
+        } catch (e) {
+          console.log('GraphQL failed for', username, 'using fallback');
+        }
+
+        if (graphqlSubs && graphqlSubs.length > 0) {
+          allSubmissions.push(...graphqlSubs.map(s => ({
             ...s,
             username,
             avatar,
             statusDisplay: 'Accepted'
-          };
-
-          // Fetch percentile for first 10 submissions only
-          if (i < 10 && s.id) {
-            try {
-              const details = await LeetCodeAPI.getSubmissionDetails(s.id);
-              if (details) {
-                subData.runtimePercentile = details.runtimePercentile;
-                subData.memoryPercentile = details.memoryPercentile;
-              }
-            } catch (e) {
-              // Continue without percentile
-            }
-          }
-
-          userSubs.push(subData);
-        }
-        allSubmissions.push(...userSubs);
-      } else {
-        // Fallback to alfa-api
-        let subs;
-        if (cached?.submissions?.submission) {
-          subs = cached.submissions;
+          })));
         } else {
-          subs = await LeetCodeAPI.getRecentSubmissions(username, 50);
+          let subs;
+          if (cached?.submissions?.submission) {
+            subs = cached.submissions;
+          } else {
+            subs = await LeetCodeAPI.getRecentSubmissions(username, 50);
+          }
+          const userSubs = (subs?.submission || []).filter(s => s.statusDisplay === 'Accepted')
+            .map(s => ({ ...s, username, avatar }));
+          allSubmissions.push(...userSubs);
         }
-
-        const userSubs = (subs?.submission || []).filter(s => s.statusDisplay === 'Accepted')
-          .map(s => ({ ...s, username, avatar }));
-        allSubmissions.push(...userSubs);
       }
+
+      // Sort by time and mark first-time solves
+      allActivitySubmissions = allSubmissions
+        .filter(s => s.statusDisplay === 'Accepted')
+        .sort((a, b) => b.timestamp - a.timestamp);
+
+      const seenProblems = new Map();
+      allActivitySubmissions.forEach(sub => {
+        const key = `${sub.username}:${sub.titleSlug}`;
+        if (!seenProblems.has(key) || sub.timestamp < seenProblems.get(key)) {
+          seenProblems.set(key, sub.timestamp);
+        }
+      });
+
+      allActivitySubmissions.forEach(sub => {
+        const key = `${sub.username}:${sub.titleSlug}`;
+        sub.isFirstSolve = sub.timestamp === seenProblems.get(key);
+      });
+
+      activityDataLoaded = true;
     }
 
-    // Filter accepted and sort by time
-    allActivitySubmissions = allSubmissions
-      .filter(s => s.statusDisplay === 'Accepted')
-      .sort((a, b) => b.timestamp - a.timestamp);
-
-    // Mark first-time solves: check if this is the first accepted submission for this user+problem
-    const seenProblems = new Map(); // Map of "username:titleSlug" -> earliest timestamp
-    allActivitySubmissions.forEach(sub => {
-      const key = `${sub.username}:${sub.titleSlug}`;
-      if (!seenProblems.has(key) || sub.timestamp < seenProblems.get(key)) {
-        seenProblems.set(key, sub.timestamp);
-      }
-    });
-
-    allActivitySubmissions.forEach(sub => {
-      const key = `${sub.username}:${sub.titleSlug}`;
-      sub.isFirstSolve = sub.timestamp === seenProblems.get(key);
-    });
-
-    // Apply filter if active
+    // Apply filter
     const filteredSubmissions = showFirstSolveOnly
       ? allActivitySubmissions.filter(s => s.isFirstSolve)
       : allActivitySubmissions;
 
-    // Get current page of submissions
-    const pageSize = 20;
-    const start = 0;
-    const end = (activityPage + 1) * pageSize;
-    const submissions = filteredSubmissions.slice(start, end);
+    const visible = filteredSubmissions.slice(0, activityDisplayCount);
 
-    if (submissions.length === 0) {
+    if (visible.length === 0) {
       activityFeed.innerHTML = `
         <div class="empty-state">
           <p>${showFirstSolveOnly ? 'No first-time solves' : 'No recent activity'}</p>
@@ -669,53 +622,62 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    activityFeed.innerHTML = submissions
+    activityFeed.innerHTML = visible
       .map(s => renderActivityItem(s))
       .join('');
 
-    // Add "Load More" indicator if there's more data
-    if (filteredSubmissions.length > end) {
+    // Show "Load More" button if there are more items
+    const remaining = filteredSubmissions.length - activityDisplayCount;
+    if (remaining > 0) {
       activityFeed.innerHTML += `
-        <div class="load-more" id="load-more-activity">
-          <span>Scroll for more...</span>
-        </div>
+        <button class="load-more-btn" id="load-more-activity">
+          Show ${Math.min(remaining, ACTIVITY_PAGE_SIZE)} more
+        </button>
       `;
+      document.getElementById('load-more-activity').addEventListener('click', () => {
+        loadActivity(true);
+      });
     }
+
+    // Fetch percentile on-demand for visible items that don't have it yet
+    fetchPercentilesForVisible(visible);
 
     activityLoading = false;
   }
 
-  // Setup infinite scroll for activity tab
-  function setupActivityScroll() {
-    const activityTab = document.getElementById('activity-tab');
-    if (!activityTab) return;
-
-    activityTab.addEventListener('scroll', () => {
-      if (activityLoading) return;
-
-      const scrollTop = activityTab.scrollTop;
-      const scrollHeight = activityTab.scrollHeight;
-      const clientHeight = activityTab.clientHeight;
-
-      // Load more when near bottom (within 100px)
-      if (scrollTop + clientHeight >= scrollHeight - 100) {
-        activityPage++;
-        loadActivity(true);
+  // Fetch percentile data lazily for visible items (non-blocking)
+  async function fetchPercentilesForVisible(items) {
+    for (const sub of items) {
+      if (sub.runtimePercentile != null || !sub.id) continue;
+      try {
+        const details = await LeetCodeAPI.getSubmissionDetails(sub.id);
+        if (details) {
+          sub.runtimePercentile = details.runtimePercentile;
+          sub.memoryPercentile = details.memoryPercentile;
+          // Update the badge in-place without re-rendering the whole list
+          const el = activityFeed.querySelector(`.activity-item[data-sub-id="${sub.id}"] .percentile-slot`);
+          if (el && details.runtimePercentile) {
+            el.innerHTML = `<span class="percentile-badge" title="Beats ${details.runtimePercentile.toFixed(1)}% in runtime">🏆${details.runtimePercentile.toFixed(1)}%</span>`;
+          }
+        }
+      } catch (e) {
+        // Non-critical, skip
       }
-    });
+    }
   }
 
-  // Activity filter toggle handler
+  // Activity filter toggle handler — cycles: All → First Solves → All
   activityFilterToggle.addEventListener('click', () => {
     showFirstSolveOnly = !showFirstSolveOnly;
     activityFilterToggle.classList.toggle('active', showFirstSolveOnly);
-    activityFilterToggle.title = showFirstSolveOnly ? 'Show all activity' : 'Show first-time solves only';
-    filterLabel.textContent = showFirstSolveOnly ? 'First Solves' : 'All';
-    animateActivityFilter(); // Animate with new filter
+    filterLabel.textContent = showFirstSolveOnly ? 'First Solves' : 'All Activity';
+    activityFilterToggle.title = showFirstSolveOnly ? 'Showing first-time solves only' : 'Showing all activity';
+    activityDisplayCount = ACTIVITY_PAGE_SIZE; // Reset to first page on filter change
+    loadActivity(false);
   });
 
   function renderActivityItem(submission) {
-    const { username, title, titleSlug, lang, timestamp, runtime, memory, avatar, isFirstSolve, runtimePercentile, id } = submission;
+    const { username, title, titleSlug, lang, timestamp, runtime, avatar, isFirstSolve, runtimePercentile, id } = submission;
     const timeAgo = formatTimeAgo(timestamp * 1000);
     const displayName = username || 'Unknown';
     const initial = (displayName && displayName[0]) ? displayName[0].toUpperCase() : 'U';
@@ -723,18 +685,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const actionText = isFirstSolve ? 'solved' : 'submitted another solution for';
 
-    // Show percentile if available (beats %)
+    // Show percentile if already fetched, otherwise leave a slot for lazy loading
     const percentileDisplay = runtimePercentile
       ? `<span class="percentile-badge" title="Beats ${runtimePercentile.toFixed(1)}% in runtime">🏆${runtimePercentile.toFixed(1)}%</span>`
       : '';
 
-    // Build submission link if we have an ID
     const submissionLink = id
       ? `https://leetcode.com/submissions/detail/${id}/`
       : `https://leetcode.com/problems/${titleSlug}`;
 
     return `
-      <div class="activity-item ${isFirstSolve ? 'first-solve' : 'additional-solve'}">
+      <div class="activity-item ${isFirstSolve ? 'first-solve' : 'additional-solve'}" data-sub-id="${id || ''}">
         <div class="activity-avatar">
           ${avatar ?
             `<img src="${avatar}" alt="${displayName}"/>` :
@@ -746,10 +707,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             <strong>${displayName}</strong> ${actionText}
             <a href="${submissionLink}" target="_blank" class="problem-link">${title}</a>
             ${isFirstSolve ? '<span class="first-solve-badge">🎉</span>' : ''}
-            ${percentileDisplay}
+            <span class="percentile-slot">${percentileDisplay}</span>
             <span class="activity-meta">in ${formatLanguage(lang)}</span>
           </div>
-          <div class="activity-time">${timeAgo}</div>
+          <div class="activity-time">${timeAgo}${runtime ? ` · ${runtime}` : ''}</div>
         </div>
       </div>
     `;
@@ -1249,5 +1210,4 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadMyUsername();
   await loadLeaderboard();
   await updateDailyGoal();
-  setupActivityScroll();
 });

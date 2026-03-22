@@ -227,7 +227,7 @@ body {
 
 .input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.15);
+  box-shadow: 0 0 0 3px rgba(255, 161, 22, 0.15);
 }
 
 .input::placeholder {
@@ -256,7 +256,7 @@ body {
 
 .btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(233, 69, 96, 0.3);
+  box-shadow: 0 4px 12px rgba(255, 161, 22, 0.3);
 }
 
 .btn-secondary {
@@ -322,7 +322,7 @@ body {
 
 .friend-card:hover {
   background: var(--bg-tertiary);
-  border-color: rgba(233, 69, 96, 0.3);
+  border-color: rgba(255, 161, 22, 0.3);
 }
 
 .friend-avatar {
@@ -490,7 +490,7 @@ body {
 }
 
 .leaderboard-list.animating .leaderboard-item {
-  transition: transform 0.4s ease, opacity 0.4s ease;
+  transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.6s ease;
 }
 
 .leaderboard-item {
@@ -580,6 +580,23 @@ body {
   border: 1px solid rgba(255, 161, 22, 0.2);
 }
 
+.lb-name-link {
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.lb-name-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.you-tag {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 12px;
+}
+
 .lb-breakdown {
   display: flex;
   gap: 8px;
@@ -641,8 +658,14 @@ body {
   transition: transform 0.3s ease;
 }
 
+.filter-toggle.active {
+  background: rgba(255, 161, 22, 0.15);
+  border-color: rgba(255, 161, 22, 0.3);
+  color: var(--accent);
+}
+
 .filter-toggle.active svg {
-  transform: rotate(180deg);
+  color: var(--accent);
 }
 
 .activity-feed {
@@ -772,12 +795,26 @@ body {
   margin-top: 4px;
 }
 
-/* Load More */
-.load-more {
-  text-align: center;
-  padding: 16px;
-  color: var(--text-muted);
+/* Load More Button */
+.load-more-btn {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  margin-top: 4px;
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
   font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.load-more-btn:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 /* Empty State */

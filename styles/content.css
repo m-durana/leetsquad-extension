@@ -458,9 +458,12 @@
   border-radius: 50%;
   padding: 0;
   margin: 0;
-  overflow: visible;
+  overflow: hidden;
   cursor: pointer;
   transform-origin: bottom right;
+  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              border-radius 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 #leetsquad-widget.mode-minimized .leetsquad-header {
@@ -473,7 +476,13 @@
   border: none;
   border-radius: 50%;
   background: var(--ls-bg-secondary);
-  transition: opacity 0.15s ease;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.25s ease;
+  transform: scale(1);
+}
+
+#leetsquad-widget.mode-minimized .leetsquad-header:hover {
+  transform: scale(1.08);
 }
 
 #leetsquad-widget.mode-minimized .leetsquad-logo span {
@@ -490,39 +499,42 @@
   opacity: 0;
   max-height: 0;
   overflow: hidden;
-  transition: opacity 0.2s ease 0.1s, max-height 0.2s ease;
+  transition: opacity 0.25s ease 0.15s,
+              max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 #leetsquad-widget.mode-minimized .leetsquad-close {
-  display: none;
   opacity: 0;
-  transition: opacity 0.2s ease 0.15s;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
 }
 
 /* Expanded state */
 #leetsquad-widget.mode-minimized.expanded {
-  width: 300px;
+  width: 320px;
   height: auto;
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
-  transition: width 0.2s ease, border-radius 0.2s ease;
+  cursor: default;
 }
 
 #leetsquad-widget.mode-minimized.expanded .leetsquad-header {
   opacity: 0;
   height: 0;
-  overflow: hidden;
+  transform: scale(0.5);
+  pointer-events: none;
 }
 
 #leetsquad-widget.mode-minimized.expanded .leetsquad-content {
-  display: block;
   opacity: 1;
-  max-height: 400px;
+  max-height: 450px;
+  overflow-y: auto;
 }
 
 #leetsquad-widget.mode-minimized.expanded .leetsquad-close {
-  display: flex;
   opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.2s ease 0.2s;
 }
 
 /* Badge with count for minimized mode */
@@ -542,34 +554,55 @@
   justify-content: center;
   border: 2px solid var(--ls-bg);
   z-index: 1;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 #leetsquad-widget.mode-minimized.expanded .mini-badge {
-  display: none;
+  opacity: 0;
+  transform: scale(0);
+  pointer-events: none;
 }
 
-/* Close button */
+/* Close button — top-right corner, outside card flow */
 .leetsquad-close {
   position: absolute;
-  bottom: 8px;
+  top: 8px;
   right: 8px;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   background: var(--ls-bg-tertiary);
-  border: none;
+  border: 1px solid var(--ls-border);
   border-radius: 50%;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--ls-text-muted);
-  transition: all 0.2s ease;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
   z-index: 10;
 }
 
 .leetsquad-close:hover {
   background: var(--ls-accent);
   color: var(--ls-bg);
+  transform: scale(1.1);
+}
+
+/* Runtime / percentile tags on widget cards */
+.runtime-tag {
+  background: rgba(255, 161, 22, 0.15);
+  color: var(--ls-accent-light);
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.solve-time-tag {
+  color: var(--ls-text-muted);
+  font-size: 10px;
+  white-space: nowrap;
 }
 
 /* Empty minimal state */
