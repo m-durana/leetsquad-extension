@@ -229,6 +229,7 @@
         <span style="margin-top: 8px; font-size: 11px; color: var(--text-muted);">Refreshing...</span>
       </div>
     `;
+    LeetSquadUtils.armSlowHint(content);
 
     try {
       LeetCodeAPI.clearMemoryCache();
@@ -528,7 +529,10 @@
     };
     document.addEventListener('click', outsideClickHandler);
 
-    // Load data
+    // If loading takes more than ~2.5s, drop a hint about rate-limit backoff.
+    const widgetContent = widget.querySelector('.leetsquad-content');
+    if (widgetContent) LeetSquadUtils.armSlowHint(widgetContent);
+
     loadSquadData();
   }
 

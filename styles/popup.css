@@ -960,6 +960,18 @@ body {
   color: var(--text-muted);
 }
 
+.loading-hint {
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  opacity: 0.75;
+  max-width: 280px;
+  margin-left: auto;
+  margin-right: auto;
+  animation: fadeIn 0.2s ease;
+}
+
 /* Settings Panel */
 .settings-panel {
   position: absolute;

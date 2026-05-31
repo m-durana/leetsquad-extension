@@ -9,6 +9,26 @@ const LEETSQUAD_CACHE_TTL_MS = 10 * 60 * 1000;
 const LeetSquadUtils = {
   CACHE_TTL_MS: LEETSQUAD_CACHE_TTL_MS,
 
+  // Arms a delayed "slow loading" hint that swaps into the given element if
+  // loading hasn't completed by `delayMs`. Common cause is LeetCode rate
+  // limiting on a fresh cache. Returns a cancel() function to call when the
+  // real data renders so the hint never appears for fast loads.
+  armSlowHint(container, delayMs) {
+    if (!container) return () => {};
+    const ms = typeof delayMs === 'number' ? delayMs : 2500;
+    const timer = setTimeout(() => {
+      const loader = container.querySelector('.loading, .leetsquad-loading');
+      if (!loader) return;
+      const hint = document.createElement('div');
+      hint.className = 'loading-hint';
+      hint.textContent = 'One moment. LeetCode is responding slowly; this often happens during rate-limit backoff.';
+      // Avoid stacking if armed twice
+      if (!loader.querySelector('.loading-hint')) loader.appendChild(hint);
+    }, ms);
+    return () => clearTimeout(timer);
+  },
+
+
   // Format language identifier to display name
   formatLanguage(lang) {
     const langMap = {

@@ -638,6 +638,16 @@
   max-width: 240px;
 }
 
+.loading-hint {
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ls-text-muted);
+  opacity: 0.75;
+  max-width: 240px;
+  text-align: center;
+}
+
 .leetsquad-cache-freshness {
   font-size: 10px;
   color: var(--ls-text-muted);

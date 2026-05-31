@@ -200,6 +200,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     friendsList.innerHTML = '<div class="loading">Loading friends...</div>';
+    LeetSquadUtils.armSlowHint(friendsList);
 
     // Use storage cache where valid; batch-fetch the rest in a single GraphQL
     // request (LeetCodeAPI.batchGetUserProfiles handles in-memory dedup too).
@@ -391,6 +392,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         .join('');
     } else {
       leaderboardList.innerHTML = '<div class="loading">Loading leaderboard...</div>';
+      LeetSquadUtils.armSlowHint(leaderboardList);
     }
 
     // Pull cache for everyone up front, then batch-fetch what's missing or
@@ -716,6 +718,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Only fetch from API on first load (not on "show more" or filter toggle)
     if (!activityDataLoaded) {
       activityFeed.innerHTML = '<div class="loading">Loading activity...</div>';
+      LeetSquadUtils.armSlowHint(activityFeed);
 
       const [friends, myUsername] = await Promise.all([
         StorageManager.getFriends(),
@@ -1127,6 +1130,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     mutualsMeStats.innerHTML = '<div class="loading">Loading...</div>';
     mutualsFriendStats.innerHTML = '<div class="loading">Loading...</div>';
     mutualsCommonList.innerHTML = '<div class="loading">Finding common problems...</div>';
+    LeetSquadUtils.armSlowHint(mutualsCommonList);
 
     // Load data for both users
     const [myData, friendData] = await Promise.all([
