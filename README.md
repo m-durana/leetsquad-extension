@@ -4,39 +4,40 @@ Chrome extension that adds social features to LeetCode: see which friends solved
 
 ## Install
 
-1. Clone this repo.
-2. Open `chrome://extensions/`, enable **Developer mode**, click **Load unpacked**, select this folder.
-3. Click the icon → Settings → set your LeetCode username, then add friends in the Friends panel.
+[Chrome Web Store](#) · [Firefox Add-ons](#) · [Edge Add-ons](#)
 
-## Develop
+## Features
+
+- Squad widget on every problem page showing which friends solved it, in what language, and how fast.
+- Leaderboard with Week / Month / All-Time views and Easy / Medium / Hard breakdowns.
+- Activity feed with first-solve badges and runtime percentile.
+- Head-to-head stats and shared-problems list versus any friend.
+- Daily goal and streak, with optional notifications when friends solve.
+- Keyboard shortcuts to open the popup and toggle the widget.
+
+## Sign-in
+
+Sign-in is fully Optional. The leaderboard, activity feed, and "who solved this" widget all work using LeetCode's public data. Signing in at leetcode.com unlocks the Beats X% runtime badges and auto-detects your username.
+
+## Permissions
+
+- `storage`: friends list, settings, local cache.
+- `alarms`: periodic background refresh.
+- `notifications`: opt-in alerts when friends solve.
+- `cookies`: read the leetcode.com session cookie when present.
+
+Host scope is limited to `leetcode.com`. No accounts, no telemetry, no server.
+
+## Build from source
 
 ```bash
+git clone <this repo>
+cd leetsquad-extension
 npm install
 npm test
 ```
 
-After editing, hit refresh on the LeetSquad card in `chrome://extensions`. Reload any open LeetCode tab if you changed `content.js`.
-
-## Layout
-
-```
-api.js          GraphQL wrapper (cache, dedup, retry, batch)
-storage.js      chrome.storage wrapper (friends, settings, profile cache)
-shared.js       escapeHtml, timeAgo, CACHE_TTL_MS
-background.js   service worker: periodic refresh + notifications
-content.js      injected widget on /problems/*
-popup.{html,js} popup UI
-tests/          Jest (200+ tests)
-```
-
-## Permissions
-
-`storage` (cache + friends), `alarms` (periodic refresh), `notifications` (optional), `cookies` (CSRF token for authenticated GraphQL). Host scope: `leetcode.com` only.
-
-## Notes
-
-- LeetCode's `recentSubmissionList` doesn't expose per-submission difficulty, so the period-leaderboard breakdown is approximate; the totals are exact.
-- Runtime percentile badges require being logged in to leetcode.com and are fetched lazily.
+Load the folder as an unpacked extension in `chrome://extensions/` or `about:debugging`.
 
 ## License
 

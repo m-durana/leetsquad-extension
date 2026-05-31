@@ -29,8 +29,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   const activityFilterToggle = document.getElementById('activity-filter-toggle');
   const filterLabel = document.getElementById('filter-label');
 
-  // Activity state
-  let showFirstSolveOnly = false;
+  // Activity state. Filter cycles: 'all' -> 'first' -> 'repeat' -> 'all'.
+  const ACTIVITY_FILTERS = ['all', 'first', 'repeat'];
+  let activityFilter = 'all';
+  const ACTIVITY_FILTER_LABEL = { all: 'All Activity', first: 'First Solves', repeat: 'Repeat Solves' };
+  const ACTIVITY_FILTER_TITLE = {
+    all: 'Showing all activity',
+    first: 'Showing first-time solves only',
+    repeat: 'Showing repeat solves only',
+  };
+  const ACTIVITY_EMPTY = {
+    all: { head: 'No recent activity', sub: 'Solve some problems!' },
+    first: { head: 'No first-time solves', sub: 'Try showing all activity' },
+    repeat: { head: 'No repeat solves', sub: 'Try showing all activity' },
+  };
 
   // Daily goal elements
   const goalFill = document.getElementById('goal-fill');
@@ -289,6 +301,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Current period for leaderboard
   let currentPeriod = 'all';
 
+  // Cached processed users from the most recent loadLeaderboard call, used
+  // by the sort animation to re-sort without going back to the network.
+  let lastLeaderboardUsersData = null;
+  let lastLeaderboardMyUsername = null;
+
   // Get timestamp for period start
   function getPeriodStartTimestamp(period) {
     const now = new Date();
@@ -474,6 +491,52 @@ document.addEventListener('DOMContentLoaded', async () => {
     leaderboardList.innerHTML = sorted
       .map((user, index) => renderLeaderboardItem(user, index, myUsername))
       .join('');
+
+    // Stash the processed users + myUsername so the period selector can
+    // re-sort synchronously without going back to the network. This is what
+    // makes the FLIP animation jitter-free: no await means no paint of the
+    // new natural positions before we invert.
+    lastLeaderboardUsersData = usersData;
+    lastLeaderboardMyUsername = myUsername;
+  }
+
+  // Synchronous re-sort using the data already loaded by loadLeaderboard.
+  // Returns true if the DOM was rewritten, false if we need a full reload.
+  function rerenderLeaderboardForPeriod(period) {
+    if (!lastLeaderboardUsersData || lastLeaderboardUsersData.length === 0) return false;
+    currentPeriod = period;
+    const periodStart = getPeriodStartTimestamp(period);
+    const processed = lastLeaderboardUsersData
+      .filter(u => u.data)
+      .map(u => {
+        if (period === 'all') {
+          return {
+            username: u.username,
+            data: u.data,
+            total: u.data.solved?.solvedProblem ?? 0,
+            easy: u.data.solved?.easySolved ?? 0,
+            medium: u.data.solved?.mediumSolved ?? 0,
+            hard: u.data.solved?.hardSolved ?? 0,
+          };
+        }
+        const stats = countSubmissionsInPeriod(u.data.submissions, periodStart);
+        return { username: u.username, data: u.data, ...stats };
+      })
+      .sort((a, b) => b.total - a.total);
+
+    if (processed.length === 0) return false;
+
+    // For periods that need submissions, fall back to async loadLeaderboard if
+    // any of the cached users is missing submissions data.
+    if (period !== 'all') {
+      const anyMissingSubs = lastLeaderboardUsersData.some(u => u.data && !u.data.submissions?.submission);
+      if (anyMissingSubs) return false;
+    }
+
+    leaderboardList.innerHTML = processed
+      .map((user, index) => renderLeaderboardItem(user, index, lastLeaderboardMyUsername))
+      .join('');
+    return true;
   }
 
   // Period selector handlers
@@ -504,27 +567,33 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Store current leaderboard data for animations
   let currentLeaderboardData = [];
 
-  // Animate leaderboard reordering using the FLIP technique. The previous
-  // implementation set the start-transform AFTER enabling transitions, which
-  // caused a one-frame jump from 0->deltaY (the visible jitter). The fix:
-  // disable transitions, set start-transform, force reflow, then enable
-  // transitions and rAF to the final transform.
-  async function animateLeaderboardSort(period) {
+  // Animate leaderboard reordering using the FLIP technique. Critically, the
+  // measure / DOM-replace / invert / play sequence is fully synchronous; no
+  // await sits between measuring old positions and applying the inverse
+  // transforms. That used to cause a one-frame paint of the new natural
+  // positions, which looked like "rendered correctly, then snapped back".
+  function animateLeaderboardSort(period) {
     const items = leaderboardList.querySelectorAll('.leaderboard-item');
     if (items.length === 0) {
       loadLeaderboard(period);
       return;
     }
 
-    // FIRST: measure old positions BEFORE the DOM is replaced
+    // MEASURE
     const oldPositions = new Map();
     items.forEach((item) => {
       const rect = item.getBoundingClientRect();
       oldPositions.set(item.dataset.username, rect.top);
     });
 
-    // LAST: rebuild the DOM
-    await loadLeaderboard(period);
+    // MUTATE synchronously from cached data. If the sync path can't satisfy
+    // (e.g. need submissions we haven't fetched yet), fall through to an
+    // async reload without animation.
+    const rewrote = rerenderLeaderboardForPeriod(period);
+    if (!rewrote) {
+      loadLeaderboard(period);
+      return;
+    }
 
     const newItems = Array.from(leaderboardList.querySelectorAll('.leaderboard-item'));
 
@@ -726,18 +795,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       activityDataLoaded = true;
     }
 
-    // Apply filter
-    const filteredSubmissions = showFirstSolveOnly
+    // Apply filter (three-way: all / first solves only / repeats only)
+    const filteredSubmissions = activityFilter === 'first'
       ? allActivitySubmissions.filter(s => s.isFirstSolve)
+      : activityFilter === 'repeat'
+      ? allActivitySubmissions.filter(s => !s.isFirstSolve)
       : allActivitySubmissions;
 
     const visible = filteredSubmissions.slice(0, activityDisplayCount);
 
     if (visible.length === 0) {
+      const empty = ACTIVITY_EMPTY[activityFilter];
       activityFeed.innerHTML = `
         <div class="empty-state">
-          <p>${showFirstSolveOnly ? 'No first-time solves' : 'No recent activity'}</p>
-          <span>${showFirstSolveOnly ? 'Try showing all activity' : 'Solve some problems!'}</span>
+          <p>${empty.head}</p>
+          <span>${empty.sub}</span>
         </div>
       `;
       activityLoading = false;
@@ -789,13 +861,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Activity filter toggle handler. Cycles: All -> First Solves -> All
+  // Activity filter toggle handler. Cycles: All -> First Solves -> Repeat Solves -> All
   activityFilterToggle.addEventListener('click', () => {
-    showFirstSolveOnly = !showFirstSolveOnly;
-    activityFilterToggle.classList.toggle('active', showFirstSolveOnly);
-    filterLabel.textContent = showFirstSolveOnly ? 'First Solves' : 'All Activity';
-    activityFilterToggle.title = showFirstSolveOnly ? 'Showing first-time solves only' : 'Showing all activity';
-    activityDisplayCount = ACTIVITY_PAGE_SIZE; // Reset to first page on filter change
+    const idx = ACTIVITY_FILTERS.indexOf(activityFilter);
+    activityFilter = ACTIVITY_FILTERS[(idx + 1) % ACTIVITY_FILTERS.length];
+    activityFilterToggle.classList.toggle('active', activityFilter !== 'all');
+    filterLabel.textContent = ACTIVITY_FILTER_LABEL[activityFilter];
+    activityFilterToggle.title = ACTIVITY_FILTER_TITLE[activityFilter];
+    activityDisplayCount = ACTIVITY_PAGE_SIZE;
     loadActivity(false);
   });
 
@@ -834,7 +907,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="activity-text">
             <strong>${safeName}</strong> ${actionText}
             <a href="${submissionLink}" target="_blank" class="problem-link">${safeTitle}</a>
-            ${isFirstSolve ? '<span class="first-solve-badge">🎉</span>' : ''}
+            ${isFirstSolve ? `<span class="first-solve-badge">🎉<i class="confetti c1"></i><i class="confetti c2"></i><i class="confetti c3"></i><i class="confetti c4"></i><i class="confetti c5"></i><i class="confetti c6"></i></span>` : ''}
             <span class="percentile-slot">${percentileDisplay}</span>
             <span class="activity-meta">in ${safeLang}</span>
           </div>
@@ -855,12 +928,58 @@ document.addEventListener('DOMContentLoaded', async () => {
     settingDebugMode.checked = settings.debugMode || false;
     settingDailyGoal.value = settings.dailyTarget || 3;
 
-    // Load username
     const username = await StorageManager.getMyUsername();
     if (username) {
       myUsernameInput.value = username;
     }
+
+    await renderSignInState();
+    await renderShortcuts();
   }
+
+  // If the user is signed in to leetcode.com, collapse the "Sign in
+  // (optional)" explanation card down to a one-line "Signed in as @user"
+  // confirmation. We check getCurrentUser silently so we don't toast.
+  async function renderSignInState() {
+    const card = document.querySelector('.setting-item.login-info');
+    if (!card) return;
+    try {
+      const status = await LeetCodeAPI.getCurrentUser();
+      if (status?.isSignedIn && status.username) {
+        card.classList.add('signed-in');
+        const safeName = LeetSquadUtils.escapeHtml(status.username);
+        card.innerHTML = `
+          <div class="setting-info">
+            <span class="setting-label">Signed in as @${safeName}</span>
+            <span class="setting-desc">Runtime percentile badges are unlocked.</span>
+          </div>
+        `;
+      }
+    } catch (e) {
+      // leave the default expanded card in place
+    }
+  }
+
+  // Show the user the current keyboard bindings (read via chrome.commands.getAll)
+  // and link them out to chrome://extensions/shortcuts where Chrome lets them
+  // change the keys. Extensions cannot rewrite their own command bindings.
+  async function renderShortcuts() {
+    if (!chrome?.commands?.getAll) return;
+    try {
+      const commands = await chrome.commands.getAll();
+      const popupCmd = commands.find(c => c.name === '_execute_action');
+      const widgetCmd = commands.find(c => c.name === 'toggle-widget');
+      const popupEl = document.getElementById('shortcut-popup');
+      const widgetEl = document.getElementById('shortcut-widget');
+      if (popupEl) popupEl.textContent = popupCmd?.shortcut || 'unset';
+      if (widgetEl) widgetEl.textContent = widgetCmd?.shortcut || 'unset';
+    } catch (e) {}
+  }
+
+  document.getElementById('edit-shortcuts-link')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+  });
 
   // Settings change handlers
   settingShowWidget.addEventListener('change', async (e) => {

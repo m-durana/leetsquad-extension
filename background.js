@@ -10,15 +10,22 @@ const BG_RETRY_CONFIG = {
 };
 
 // Initialize alarms on install
-chrome.runtime.onInstalled.addListener(() => {
-  // Set up periodic checking (every 30 minutes)
+chrome.runtime.onInstalled.addListener(async () => {
   chrome.alarms.create('checkUpdates', { periodInMinutes: 30 });
-
-  // Set up daily reset at midnight
   chrome.alarms.create('dailyReset', {
     when: getNextMidnight(),
     periodInMinutes: 24 * 60
   });
+
+  // Seed the solved-slug set immediately so first-run users see data
+  // without waiting for the 30-minute alarm cycle.
+  try {
+    const data = await chrome.storage.local.get(['leetsquad_friends']);
+    const friends = data.leetsquad_friends || [];
+    if (friends.length > 0) {
+      refreshSolvedSets(friends).catch(e => console.error('initial refresh:', e));
+    }
+  } catch (e) {}
 
   console.log('LeetSquad installed and alarms set');
 });
@@ -89,6 +96,56 @@ async function graphqlFetch(query, variables = {}) {
     }
   }
   return null;
+}
+
+// Pull each friend's most recent accepted submissions and union into their
+// cumulative solved-slug set. Over time this converges toward each active
+// friend's full solved list, working around LeetCode's API capping
+// recentAcSubmissionList at ~20 entries per query.
+async function refreshSolvedSets(friends) {
+  if (!friends || friends.length === 0) return;
+  const query = `
+    query getRecentAc($username: String!, $limit: Int!) {
+      recentAcSubmissionList(username: $username, limit: $limit) {
+        titleSlug
+        timestamp
+      }
+    }
+  `;
+
+  // Load the current set once, mutate locally, write once.
+  let all = {};
+  try {
+    const existing = await chrome.storage.local.get(['leetsquad_solved_sets']);
+    all = existing.leetsquad_solved_sets || {};
+  } catch (e) {
+    return;
+  }
+
+  for (const username of friends) {
+    try {
+      const data = await graphqlFetch(query, { username, limit: 20 });
+      const entries = data?.recentAcSubmissionList || [];
+      if (entries.length === 0) continue;
+      const set = all[username] || { slugs: {}, lastRefreshed: 0 };
+      for (const e of entries) {
+        if (!e?.titleSlug) continue;
+        const ts = +e.timestamp || 0;
+        const prev = set.slugs[e.titleSlug] || 0;
+        set.slugs[e.titleSlug] = ts > prev ? ts : prev;
+      }
+      set.lastRefreshed = Date.now();
+      all[username] = set;
+    } catch (e) {
+      // Skip this friend; the next alarm will retry
+    }
+  }
+
+  try {
+    await chrome.storage.local.set({ leetsquad_solved_sets: all });
+  } catch (e) {
+    console.error('refreshSolvedSets write failed:', e);
+  }
 }
 
 // Fetch recent submissions via GraphQL
@@ -228,6 +285,10 @@ async function checkForNewSubmissions() {
     // This is what makes popup-open feel instant for users.
     warmProfileCache(friends).catch(e => console.error('warmProfileCache:', e));
 
+    // Grow the persistent solved-slug set so the widget can answer "did X
+    // solve Y" for older problems beyond LeetCode's ~20-recent API cap.
+    refreshSolvedSets(friends).catch(e => console.error('refreshSolvedSets:', e));
+
     if (!settings.notifications || friends.length === 0) return;
 
     const newSubmissions = [];
@@ -321,6 +382,19 @@ async function updateDailyGoal(problemSlug, difficulty) {
     console.error('Error updating daily goal:', error);
   }
 }
+
+// Keyboard shortcut: toggle the widget on the active LeetCode tab.
+// _execute_action is handled by Chrome automatically (opens the popup).
+chrome.commands?.onCommand.addListener(async (command) => {
+  if (command !== 'toggle-widget') return;
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id || !tab.url?.includes('leetcode.com/problems/')) return;
+    chrome.tabs.sendMessage(tab.id, { action: 'toggleWidget' });
+  } catch (e) {
+    console.error('toggle-widget shortcut failed:', e);
+  }
+});
 
 // Handle notification clicks
 chrome.notifications.onClicked.addListener((notificationId) => {

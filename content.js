@@ -22,12 +22,11 @@
   function createSquadWidget(solvedCount = 0) {
     const widget = document.createElement('div');
     widget.id = 'leetsquad-widget';
+    const iconUrl = chrome.runtime.getURL('icons/logo.png');
     widget.innerHTML = `
       <div class="leetsquad-header">
         <div class="leetsquad-logo">
-          <svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor">
-            <path d="M244.8,150.4a8,8,0,0,1-11.2-1.6A51.6,51.6,0,0,0,192,128a8,8,0,0,1-7.37-4.89,8,8,0,0,1,0-6.22A8,8,0,0,1,192,112a24,24,0,1,0-23.24-30,8,8,0,1,1-15.5-4A40,40,0,1,1,219,117.51a67.94,67.94,0,0,1,27.43,21.68A8,8,0,0,1,244.8,150.4ZM190.92,212a8,8,0,1,1-13.84,8,57,57,0,0,0-98.16,0,8,8,0,1,1-13.84-8,72.06,72.06,0,0,1,33.74-29.92,48,48,0,1,1,58.36,0A72.06,72.06,0,0,1,190.92,212ZM128,176a32,32,0,1,0-32-32A32,32,0,0,0,128,176ZM72,120a8,8,0,0,0-8-8A24,24,0,1,1,87.24,82a8,8,0,1,0,15.5-4A40,40,0,1,0,37,117.51,67.94,67.94,0,0,0,9.6,139.19a8,8,0,1,0,12.8,9.61A51.6,51.6,0,0,1,64,128,8,8,0,0,0,72,120Z"/>
-          </svg>
+          <img src="${iconUrl}" alt="LeetSquad" class="logo-img">
           <span>LeetSquad</span>
         </div>
       </div>
@@ -119,17 +118,24 @@
     `;
   }
 
-  // Render "no one solved" state with manual check button
+  // Render "no one solved" state. LeetCode's API only surfaces each friend's
+  // most recent ~20 accepted submissions, so older solves are invisible until
+  // the background alarm has had time to accrete them into the local set.
+  // We say so explicitly instead of silently lying.
   function renderNoSolvedState(problemSlug) {
     return `
       <div class="leetsquad-empty-minimal">
-        <span>No one solved yet</span>
-        <button class="manual-check-btn" data-problem="${escapeHtml(problemSlug)}" title="Check again with deeper search">
+        <span>No recent solves from your squad</span>
+        <span class="leetsquad-empty-hint">
+          We only see each friend's last ~20 LeetCode submissions.
+          Older solves appear as the cache grows in the background.
+        </span>
+        <button class="manual-check-btn" data-problem="${escapeHtml(problemSlug)}" title="Pull fresh data from LeetCode now">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"/>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            <polyline points="23 4 23 10 17 10"/>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
           </svg>
-          This is wrong!
+          Refresh now
         </button>
       </div>
     `;
@@ -157,9 +163,17 @@
 
     if (solvedUsers.length === 0) {
       content.innerHTML = renderNoSolvedState(problemSlug);
+      await renderCacheFreshness(content, solvedUsers);
       const manualCheckBtn = content.querySelector('.manual-check-btn');
       if (manualCheckBtn) {
-        manualCheckBtn.addEventListener('click', () => handleManualCheck(problemSlug));
+        manualCheckBtn.addEventListener('click', (e) => {
+          // stopPropagation: handleManualCheck replaces innerHTML synchronously,
+          // which detaches this button before click bubbles to the document
+          // outside-click handler (which would then collapse the widget).
+          e.preventDefault();
+          e.stopPropagation();
+          handleManualCheck(problemSlug);
+        });
       }
     } else {
       content.innerHTML = `
@@ -172,7 +186,38 @@
     }
   }
 
-  // Handle manual check button click (deep search with more API calls)
+  // Appends a small "N known solves across your squad, refreshed Xm ago" line
+  // so users can see the cache is growing in the background even when this
+  // particular problem doesn't have a hit yet.
+  async function renderCacheFreshness(content) {
+    try {
+      const friends = await StorageManager.getFriends();
+      const myUsername = await StorageManager.getMyUsername();
+      const allUsers = myUsername ? [myUsername, ...friends.filter(f => f !== myUsername)] : friends;
+      if (allUsers.length === 0) return;
+
+      let totalSlugs = 0;
+      let mostRecent = 0;
+      for (const u of allUsers) {
+        const set = await StorageManager.getSolvedSet(u);
+        totalSlugs += Object.keys(set.slugs).length;
+        if (set.lastRefreshed > mostRecent) mostRecent = set.lastRefreshed;
+      }
+      if (totalSlugs === 0) return;
+
+      const minutes = mostRecent ? Math.floor((Date.now() - mostRecent) / 60000) : null;
+      const freshness = minutes === null ? 'never refreshed'
+        : minutes < 1 ? 'just now'
+        : minutes < 60 ? `${minutes}m ago`
+        : `${Math.floor(minutes / 60)}h ago`;
+
+      const note = document.createElement('div');
+      note.className = 'leetsquad-cache-freshness';
+      note.textContent = `${totalSlugs} known solves across your squad · refreshed ${freshness}`;
+      content.appendChild(note);
+    } catch (e) {}
+  }
+
   async function handleManualCheck(problemSlug) {
     const widget = document.getElementById('leetsquad-widget');
     const content = widget?.querySelector('.leetsquad-content');
@@ -181,12 +226,11 @@
     content.innerHTML = `
       <div class="leetsquad-loading">
         <div class="leetsquad-spinner"></div>
-        <span style="margin-top: 8px; font-size: 11px; color: var(--text-muted);">Deep searching...</span>
+        <span style="margin-top: 8px; font-size: 11px; color: var(--text-muted);">Refreshing...</span>
       </div>
     `;
 
     try {
-      // Clear memory cache to force fresh data
       LeetCodeAPI.clearMemoryCache();
 
       const [friends, myUsername] = await Promise.all([
@@ -196,17 +240,30 @@
 
       const allUsers = myUsername ? [myUsername, ...friends.filter(f => f !== myUsername)] : friends;
 
-      // Batch check all users (fresh, no cache)
-      const solvedMap = await LeetCodeAPI.batchCheckSolved(allUsers, problemSlug);
+      // Fresh batch of recent ACs for everyone; merge each into their slug set.
+      const acByUser = await LeetCodeAPI.batchGetRecentAcSubmissions(allUsers, 20);
+      await Promise.all(allUsers.map(async (u) => {
+        const subs = acByUser[u] || [];
+        if (subs.length === 0) return;
+        await StorageManager.mergeSolvedSlugs(
+          u,
+          subs.map(s => ({ titleSlug: s.titleSlug, timestamp: s.timestamp }))
+        );
+      }));
 
-      // Get profiles for solved users
-      const solvedUsernames = allUsers.filter(u => solvedMap[u]?.solved);
+      // Combine: anyone with this slug in their (now-refreshed) set is solved.
+      const solvedFromSet = await Promise.all(allUsers.map(async (u) => {
+        const ts = await StorageManager.getSolvedSlugTimestamp(u, problemSlug);
+        return ts ? u : null;
+      }));
+      const solvedUsernames = solvedFromSet.filter(Boolean);
+
       const profiles = solvedUsernames.length > 0
         ? await LeetCodeAPI.batchGetUserProfiles(solvedUsernames)
         : {};
 
-      const solvedUsers = solvedUsernames.map(username => {
-        const sub = solvedMap[username].submission;
+      const solvedUsers = solvedUsernames.map((username) => {
+        const sub = (acByUser[username] || []).find(s => s.titleSlug === problemSlug);
         return {
           username,
           profile: profiles[username] || null,
@@ -221,8 +278,8 @@
       if (solvedUsers.length === 0) {
         content.innerHTML = `
           <div class="leetsquad-empty-minimal">
-            <span>Still no one found</span>
-            <span style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">Checked all methods</span>
+            <span>Still no recent solves</span>
+            <span class="leetsquad-empty-hint">The cache will keep growing in the background. Older solves appear here as friends continue using LeetCode.</span>
           </div>
         `;
       }
@@ -280,15 +337,32 @@
       // Step 1: Show stale cached results immediately (non-blocking)
       const staleShown = await showStaleResults(widget, content, allUsers, myUsername, problemSlug);
 
-      // Step 2: In parallel, batch-check who solved this problem AND fetch
-      // profiles for *all* friends. The profile fetch is what warms the
-      // storage cache for popup-open, which otherwise loads cold.
+      // Step 2: Consult the persistent solved-slug set first. Friends who
+      // have this slug cached are an instant "yes" without any API call,
+      // which is what makes Two Sum (and other old solves) actually appear.
+      // For friends whose cached set doesn't include this slug, the recent
+      // API check is still authoritative (their cache may just be incomplete).
+      const slugSetResults = await Promise.all(allUsers.map(async (u) => {
+        const ts = await StorageManager.getSolvedSlugTimestamp(u, problemSlug);
+        return { username: u, cachedTimestamp: ts };
+      }));
+      const cachedSolved = new Set(slugSetResults.filter(r => r.cachedTimestamp).map(r => r.username));
+
       const [solvedMap, profiles] = await Promise.all([
         LeetCodeAPI.batchCheckSolved(allUsers, problemSlug),
         LeetCodeAPI.batchGetUserProfiles(allUsers).catch(() => ({})),
       ]);
 
-      const solvedUsernames = allUsers.filter(u => solvedMap[u]?.solved);
+      // Merge anything the API discovered into the slug set so future loads
+      // are instant. This is the accretion loop that makes the cache grow.
+      await Promise.all(allUsers.map(async (u) => {
+        const sub = solvedMap[u]?.submission;
+        if (sub?.titleSlug && sub?.timestamp) {
+          await StorageManager.mergeSolvedSlugs(u, [{ titleSlug: sub.titleSlug, timestamp: sub.timestamp }]);
+        }
+      }));
+
+      const solvedUsernames = allUsers.filter(u => solvedMap[u]?.solved || cachedSolved.has(u));
 
       const solvedUsers = await Promise.all(solvedUsernames.map(async (username) => {
         const sub = solvedMap[username].submission;
@@ -607,6 +681,15 @@
     window.addEventListener('leetsquad:navigation', handleNavigation);
     window.addEventListener('popstate', handleNavigation);
   }
+
+  // Background relays the keyboard-shortcut command here.
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg?.action !== 'toggleWidget') return;
+    const widget = document.getElementById('leetsquad-widget');
+    if (!widget) return;
+    isWidgetExpanded = !isWidgetExpanded;
+    widget.classList.toggle('expanded', isWidgetExpanded);
+  });
 
   // Listen for storage changes to update widget in real-time
   chrome.storage.onChanged.addListener((changes, namespace) => {

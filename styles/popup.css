@@ -31,7 +31,8 @@
 
 body {
   width: 380px;
-  height: 600px;
+  min-height: 280px;
+  max-height: 600px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
@@ -41,7 +42,8 @@ body {
 .app {
   display: flex;
   flex-direction: column;
-  height: 600px;
+  min-height: 280px;
+  max-height: 600px;
 }
 
 /* Header */
@@ -64,8 +66,16 @@ body {
   letter-spacing: 0.3px;
 }
 
-.logo svg {
+.logo svg,
+.logo img {
   color: var(--accent);
+}
+
+.logo .logo-img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  display: block;
 }
 
 .icon-btn {
@@ -762,8 +772,47 @@ body {
   font-size: 14px;
   margin-left: 4px;
   display: inline-block;
+  position: relative;
+  cursor: default;
   animation: celebrate 0.6s ease-in-out;
 }
+
+/* Confetti pieces fly out from the 🎉 badge on hover. Each particle has its
+   own --dx/--dy direction and color; the burst animation is shared. */
+.confetti {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0);
+}
+
+.confetti.c1 { --dx: -18px; --dy: -18px; background: #ff375f; }
+.confetti.c2 { --dx:  18px; --dy: -18px; background: #ffd700; }
+.confetti.c3 { --dx: -22px; --dy:   2px; background: #4dabf7; }
+.confetti.c4 { --dx:  22px; --dy:   2px; background: #00b8a3; }
+.confetti.c5 { --dx:  -8px; --dy: -24px; background: #a855f7; }
+.confetti.c6 { --dx:   8px; --dy: -24px; background: #ffb84d; }
+
+@keyframes burst {
+  0%   { transform: translate(-50%, -50%) scale(0.3); opacity: 1; }
+  60%  { opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1); opacity: 0; }
+}
+
+.first-solve-badge:hover .confetti {
+  animation: burst 0.7s ease-out forwards;
+}
+
+.first-solve-badge:hover .c2 { animation-delay: 0.04s; }
+.first-solve-badge:hover .c3 { animation-delay: 0.08s; }
+.first-solve-badge:hover .c4 { animation-delay: 0.02s; }
+.first-solve-badge:hover .c5 { animation-delay: 0.06s; }
+.first-solve-badge:hover .c6 { animation-delay: 0.10s; }
 
 .beats-badge {
   display: inline-block;
@@ -798,6 +847,22 @@ body {
 @keyframes slideUp {
   from { transform: translate(-50%, 20px); opacity: 0; }
   to   { transform: translate(-50%, 0);    opacity: 1; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Small inline spinner used in buttons during async actions (e.g. "Add Friend"). */
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
 }
 
 .toast {
@@ -964,6 +1029,49 @@ body {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+}
+
+.setting-item.login-info.signed-in {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.setting-item.shortcut-section {
+  display: block;
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.shortcut-row kbd {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", monospace;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  color: var(--text-primary);
+}
+
+.shortcut-edit {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.shortcut-edit:hover {
+  text-decoration: underline;
 }
 
 .setting-item.login-info .setting-desc {

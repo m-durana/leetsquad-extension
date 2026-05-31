@@ -39,7 +39,8 @@ describe('CSS: required keyframes are defined', () => {
 // inverted transform.
 describe('Animation: FLIP ordering in animateLeaderboardSort', () => {
   const popupJs = fs.readFileSync(path.join(__dirname, '..', 'popup.js'), 'utf8');
-  const fn = popupJs.match(/async function animateLeaderboardSort[\s\S]*?\n  \}/);
+  // Match both the historical `async function ...` and the current sync form.
+  const fn = popupJs.match(/(async\s+)?function animateLeaderboardSort[\s\S]*?\n  \}/);
   test('the function exists in popup.js', () => {
     expect(fn).not.toBeNull();
   });

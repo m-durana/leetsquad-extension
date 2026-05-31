@@ -62,8 +62,16 @@
   letter-spacing: 0.3px;
 }
 
-.leetsquad-logo svg {
+.leetsquad-logo svg,
+.leetsquad-logo img {
   color: var(--ls-accent);
+}
+
+.leetsquad-logo .logo-img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  display: block;
 }
 
 .leetsquad-toggle {
@@ -489,9 +497,11 @@
   display: none;
 }
 
-#leetsquad-widget.mode-minimized .leetsquad-logo svg {
-  width: 24px;
-  height: 24px;
+#leetsquad-widget.mode-minimized .leetsquad-logo svg,
+#leetsquad-widget.mode-minimized .leetsquad-logo img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
 }
 
 #leetsquad-widget.mode-minimized .leetsquad-content {
@@ -509,11 +519,13 @@
   transition: opacity 0.2s ease;
 }
 
-/* Expanded state. height: auto is not animatable (it snaps), so we use a
-   concrete value that matches the .leetsquad-content max-height + header. */
+/* Expanded state. Content drives the height between min/max, matching the
+   popup's behavior: small when there's nothing to show, taller when full. */
 #leetsquad-widget.mode-minimized.expanded {
   width: 320px;
-  height: 480px;
+  min-height: 180px;
+  max-height: 480px;
+  height: auto;
   border-radius: 12px;
   overflow: hidden;
   cursor: default;
@@ -528,7 +540,7 @@
 
 #leetsquad-widget.mode-minimized.expanded .leetsquad-content {
   opacity: 1;
-  max-height: 450px;
+  max-height: 440px;
   overflow-y: auto;
 }
 
@@ -616,6 +628,23 @@
   flex-direction: column;
   align-items: center;
   gap: 8px;
+}
+
+.leetsquad-empty-hint {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ls-text-muted);
+  opacity: 0.75;
+  max-width: 240px;
+}
+
+.leetsquad-cache-freshness {
+  font-size: 10px;
+  color: var(--ls-text-muted);
+  opacity: 0.6;
+  padding: 8px 12px 12px;
+  text-align: center;
+  border-top: 1px solid var(--ls-border);
 }
 
 /* Manual check button */

@@ -8,7 +8,8 @@ const StorageManager = {
     SETTINGS: 'leetsquad_settings',
     DAILY_GOALS: 'leetsquad_daily_goals',
     CHALLENGES: 'leetsquad_challenges',
-    ACTIVITY_LOG: 'leetsquad_activity'
+    ACTIVITY_LOG: 'leetsquad_activity',
+    SOLVED_SETS: 'leetsquad_solved_sets'
   },
 
   // Cache expiry time. Unified with the in-memory cache via LeetSquadUtils
@@ -237,8 +238,7 @@ const StorageManager = {
     return filtered;
   },
 
-  // Activity log - capped at 200 entries, entries older than 30 days are pruned
-  ACTIVITY_MAX_AGE: 30 * 24 * 60 * 60 * 1000, // 30 days
+  ACTIVITY_MAX_AGE: 30 * 24 * 60 * 60 * 1000,
 
   async getActivityLog(limit = 50) {
     const log = (await this.get(this.KEYS.ACTIVITY_LOG)) || [];
@@ -258,6 +258,61 @@ const StorageManager = {
     log = log.filter(entry => entry.timestamp > cutoff).slice(0, 200);
 
     await this.set(this.KEYS.ACTIVITY_LOG, log);
+  },
+
+  // ===== Solved-slug set =====
+  // Shape: { [username]: { slugs: { [titleSlug]: timestampSec }, lastRefreshed: ms } }
+
+  async getAllSolvedSets() {
+    return (await this.get(this.KEYS.SOLVED_SETS)) || {};
+  },
+
+  async getSolvedSet(username) {
+    const all = await this.getAllSolvedSets();
+    return all[username] || { slugs: {}, lastRefreshed: 0 };
+  },
+
+  // Returns true if `username` has `titleSlug` in their accreted set.
+  async hasSolvedSlug(username, titleSlug) {
+    const set = await this.getSolvedSet(username);
+    return !!set.slugs[titleSlug];
+  },
+
+  // Returns the timestamp (sec) we have on file for this username/slug, or
+  // null. Used so the widget can render "solved Xd ago" even from cached data.
+  async getSolvedSlugTimestamp(username, titleSlug) {
+    const set = await this.getSolvedSet(username);
+    return set.slugs[titleSlug] || null;
+  },
+
+  async getSolvedCount(username) {
+    const set = await this.getSolvedSet(username);
+    return Object.keys(set.slugs).length;
+  },
+
+  // Merge a batch of {titleSlug, timestamp} entries into a user's set, keeping
+  // the latest timestamp per slug. Persists in one storage write.
+  async mergeSolvedSlugs(username, entries) {
+    if (!username || !Array.isArray(entries) || entries.length === 0) return;
+    const all = await this.getAllSolvedSets();
+    const set = all[username] || { slugs: {}, lastRefreshed: 0 };
+    for (const e of entries) {
+      if (!e?.titleSlug) continue;
+      const ts = +e.timestamp || 0;
+      const prev = set.slugs[e.titleSlug] || 0;
+      set.slugs[e.titleSlug] = ts > prev ? ts : prev;
+    }
+    set.lastRefreshed = Date.now();
+    all[username] = set;
+    await this.set(this.KEYS.SOLVED_SETS, all);
+  },
+
+  // Drop a user's solved set entirely (e.g. when they're removed as a friend).
+  async clearSolvedSet(username) {
+    const all = await this.getAllSolvedSets();
+    if (!all[username]) return;
+    delete all[username];
+    await this.set(this.KEYS.SOLVED_SETS, all);
   },
 
   async pruneActivityLog() {

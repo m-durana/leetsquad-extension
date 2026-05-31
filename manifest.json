@@ -43,5 +43,21 @@
       "resources": ["styles/*", "icons/*"],
       "matches": ["https://leetcode.com/*"]
     }
-  ]
+  ],
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L",
+        "mac": "Command+Shift+L"
+      },
+      "description": "Open the LeetSquad popup"
+    },
+    "toggle-widget": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+K",
+        "mac": "Command+Shift+K"
+      },
+      "description": "Toggle the LeetSquad widget on the current LeetCode problem"
+    }
+  }
 }
