@@ -199,6 +199,92 @@ const LeetCodeAPI = {
     }
   },
 
+  // ============= Full Self-Import (auth-only) =============
+
+  // Full AC list for the signed-in user via problemsetQuestionList. Paginated.
+  async getMySolvedSlugs(opts = {}) {
+    const query = `
+      query problemsetQuestionList($categorySlug: String, $limit: Int, $skip: Int, $filters: QuestionListFilterInput) {
+        problemsetQuestionList: questionList(categorySlug: $categorySlug, limit: $limit, skip: $skip, filters: $filters) {
+          total: totalNum
+          questions: data {
+            titleSlug
+          }
+        }
+      }
+    `;
+    const LIMIT = opts.limit || 100;
+    const MAX_PAGES = opts.maxPages || 40;
+    const slugs = [];
+    let skip = 0;
+
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const data = await this.graphqlQuery(query, {
+        categorySlug: 'all-code-essentials',
+        skip,
+        limit: LIMIT,
+        filters: { status: 'AC' },
+      });
+      const result = data?.problemsetQuestionList;
+      if (!result || !Array.isArray(result.questions)) break;
+      for (const q of result.questions) {
+        if (q?.titleSlug) slugs.push(q.titleSlug);
+      }
+      skip += LIMIT;
+      if (typeof result.total === 'number' && skip >= result.total) break;
+      if (result.questions.length === 0) break;
+    }
+
+    return slugs;
+  },
+
+  // ============= Solutions-Feed Scrape (public, arbitrary user) =============
+
+  // Public solution articles per user. Lower-bound proof-of-solved.
+  async getUserSolutionArticles(username, opts = {}) {
+    const query = `
+      query ugcArticleUserSolutionArticles($username: String!, $skip: Int, $first: Int) {
+        ugcArticleUserSolutionArticles(username: $username, skip: $skip, first: $first) {
+          totalNum
+          pageInfo { hasNextPage }
+          edges {
+            node {
+              questionSlug
+              createdAt
+            }
+          }
+        }
+      }
+    `;
+    const FIRST = opts.first || 1000;
+    const MAX_PAGES = opts.maxPages || 5;
+    const out = new Map();
+    let skip = 0;
+
+    for (let page = 0; page < MAX_PAGES; page++) {
+      let data;
+      try {
+        data = await this.graphqlQuery(query, { username, skip, first: FIRST });
+      } catch (e) {
+        break;
+      }
+      const result = data?.ugcArticleUserSolutionArticles;
+      if (!result) break;
+      const edges = Array.isArray(result.edges) ? result.edges : [];
+      for (const e of edges) {
+        const slug = e?.node?.questionSlug;
+        if (!slug) continue;
+        const ts = +(e.node.createdAt) || 0;
+        const prev = out.get(slug);
+        if (prev === undefined || ts < prev) out.set(slug, ts);
+      }
+      if (!result.pageInfo?.hasNextPage) break;
+      skip += FIRST;
+    }
+
+    return Array.from(out.entries()).map(([titleSlug, timestamp]) => ({ titleSlug, timestamp }));
+  },
+
   // ============= Logged-in User Detection =============
 
   // Returns { username, isSignedIn } for whoever is logged in to leetcode.com

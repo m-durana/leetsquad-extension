@@ -138,6 +138,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         myUsernameInput.value = status.username;
         await StorageManager.setMyUsername(status.username);
         if (!silent) showToast(`Detected: ${status.username}`);
+        maybeSelfImport(status.username).catch(() => {});
         loadLeaderboard();
         return true;
       }
@@ -146,6 +147,49 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!silent) showToast('Could not detect. Sign in to leetcode.com first', 'error');
     }
     return false;
+  }
+
+  // One-time per friend: union their public solution-article slugs.
+  const BOOTSTRAPPED_KEY = 'leetsquad_solutions_bootstrapped';
+  async function bootstrapFromSolutions(username) {
+    if (!username) return;
+    const done = (await StorageManager.get(BOOTSTRAPPED_KEY)) || {};
+    if (done[username]) return;
+    try {
+      const entries = await LeetCodeAPI.getUserSolutionArticles(username);
+      if (entries.length > 0) {
+        await StorageManager.mergeSolvedSlugs(username, entries);
+      }
+      done[username] = Date.now();
+      await StorageManager.set(BOOTSTRAPPED_KEY, done);
+    } catch (e) {}
+  }
+
+  // Backfill existing friends, one per popup open.
+  async function backfillExistingFriends() {
+    const friends = await StorageManager.getFriends();
+    const done = (await StorageManager.get(BOOTSTRAPPED_KEY)) || {};
+    const myUsername = await StorageManager.getMyUsername();
+    const candidates = friends.filter(f => !done[f] && f !== myUsername);
+    if (candidates.length === 0) return;
+    bootstrapFromSolutions(candidates[0]).catch(() => {});
+  }
+
+  // Daily full self-import (auth-only path).
+  const SELF_IMPORT_KEY = 'leetsquad_self_import_at';
+  async function maybeSelfImport(myUsername) {
+    if (!myUsername) return;
+    const last = (await StorageManager.get(SELF_IMPORT_KEY)) || 0;
+    if (Date.now() - last < 24 * 60 * 60 * 1000) return;
+    try {
+      const slugs = await LeetCodeAPI.getMySolvedSlugs();
+      if (slugs.length === 0) return;
+      await StorageManager.mergeSolvedSlugs(
+        myUsername,
+        slugs.map(s => ({ titleSlug: s, timestamp: 0 }))
+      );
+      await StorageManager.set(SELF_IMPORT_KEY, Date.now());
+    } catch (e) {}
   }
 
   detectMyUsernameBtn?.addEventListener('click', () => detectMyUsername());
@@ -169,6 +213,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       await StorageManager.addFriend(username);
       friendUsernameInput.value = '';
       showToast(`Added ${username}!`);
+      bootstrapFromSolutions(username).catch(() => {});
       loadFriends();
       loadLeaderboard();
     } catch (error) {
@@ -1460,7 +1505,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // empty-state stop being a hard prerequisite for everything else.
   if (!myUsernameInput.value) {
     detectMyUsername({ silent: true }).catch(() => {});
+  } else {
+    // Returning user: try the daily self-import in the background.
+    maybeSelfImport(myUsernameInput.value).catch(() => {});
   }
+  backfillExistingFriends().catch(() => {});
 
   await loadLeaderboard();
   await updateDailyGoal();
