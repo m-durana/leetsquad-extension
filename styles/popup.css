@@ -1527,3 +1527,109 @@ body {
   color: var(--text-muted);
   font-size: 13px;
 }
+
+/* ===== Cloud Sync ===== */
+.cloud-sync-status {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.cloud-sync-status.connected {
+  color: #22c55e;
+}
+.cloud-sync-status.expired {
+  color: #f59e0b;
+}
+.cloud-sync-status.error {
+  color: #ef4444;
+}
+
+/* ===== Modal ===== */
+.modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal.hidden {
+  display: none;
+}
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+}
+.modal-panel {
+  position: relative;
+  background: var(--bg-secondary, #1a1a2e);
+  border: 1px solid var(--border, #2d2d44);
+  border-radius: 12px;
+  padding: 20px;
+  width: min(360px, calc(100% - 32px));
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+}
+.modal-panel h2 {
+  font-size: 16px;
+  margin: 0 0 8px;
+  color: var(--text-primary);
+}
+.modal-body {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+.modal-nonce {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  margin-bottom: 12px;
+}
+.modal-nonce code {
+  flex: 1;
+  background: var(--bg-tertiary, #11111d);
+  border: 1px solid var(--border, #2d2d44);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--text-primary);
+  word-break: break-all;
+  user-select: all;
+}
+.btn-small {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+.modal-error {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: #fca5a5;
+  margin-bottom: 12px;
+}
+.modal-error.hidden {
+  display: none;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.modal-footnote {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 12px 0 0;
+  line-height: 1.5;
+}
+.modal-footnote a {
+  color: var(--accent, #e94560);
+  text-decoration: none;
+}
+.modal-footnote a:hover {
+  text-decoration: underline;
+}

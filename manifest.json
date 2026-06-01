@@ -7,10 +7,12 @@
     "storage",
     "alarms",
     "notifications",
-    "cookies"
+    "cookies",
+    "scripting"
   ],
   "host_permissions": [
-    "https://leetcode.com/*"
+    "https://leetcode.com/*",
+    "https://leetsquad.miro.build/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -19,7 +21,7 @@
     {
       "matches": ["https://leetcode.com/problems/*"],
       "css": ["styles/content.css"],
-      "js": ["shared.js", "api.js", "storage.js", "content.js"],
+      "js": ["shared.js", "api.js", "storage.js", "cloudsync.js", "content.js"],
       "run_at": "document_idle"
     }
   ],

@@ -1,6 +1,7 @@
 // LeetSquad - Background Service Worker
 
 const LEETCODE_GRAPHQL = 'https://leetcode.com/graphql';
+const LEETSQUAD_CLOUD_BASE = 'https://leetsquad.miro.build';
 
 // Retry config for background fetches
 const BG_RETRY_CONFIG = {
@@ -287,7 +288,9 @@ async function checkForNewSubmissions() {
 
     // Grow the persistent solved-slug set so the widget can answer "did X
     // solve Y" for older problems beyond LeetCode's ~20-recent API cap.
-    refreshSolvedSets(friends).catch(e => console.error('refreshSolvedSets:', e));
+    refreshSolvedSets(friends)
+      .then(() => uploadMySolvedSetIfOptedIn())
+      .catch(e => console.error('refreshSolvedSets:', e));
 
     if (!settings.notifications || friends.length === 0) return;
 
@@ -342,8 +345,206 @@ async function checkForNewSubmissions() {
   }
 }
 
+// ===== Cloud sync: bio verification flow =====
+// Runs in a leetcode.com tab so it has session cookies + CSRF. Reads current
+// aboutMe, writes (aboutMe + nonce), calls back, restores aboutMe. The
+// background orchestrates; the in-page function below is intentionally dumb.
+
+function _lcBioFn(op, value) {
+  return (async () => {
+    const csrftoken = (document.cookie.split('; ').find(c => c.startsWith('csrftoken=')) || '').split('=')[1];
+    if (!csrftoken) return { error: 'no_csrf' };
+    const post = (query, variables) => fetch('https://leetcode.com/graphql/', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', 'x-csrftoken': csrftoken },
+      body: JSON.stringify({ query, variables }),
+    }).then(r => r.json());
+
+    if (op === 'read') {
+      const me = await post('query { userStatus { isSignedIn username } }', {});
+      const username = me?.data?.userStatus?.username;
+      if (!me?.data?.userStatus?.isSignedIn || !username) return { error: 'not_signed_in' };
+      const cur = await post(
+        'query userPublicProfile($username: String!) { matchedUser(username: $username) { profile { aboutMe } } }',
+        { username }
+      );
+      return { username, aboutMe: cur?.data?.matchedUser?.profile?.aboutMe || '' };
+    }
+    if (op === 'write') {
+      const upd = await post(
+        'mutation updateProfile($fieldName: String!, $value: String) { updateProfile(fieldName: $fieldName, value: $value) { ok error } }',
+        { fieldName: 'about_me', value: value || '' }
+      );
+      const r = upd?.data?.updateProfile;
+      if (!r?.ok) return { error: r?.error || 'update_failed' };
+      return { ok: true };
+    }
+    return { error: 'unknown_op' };
+  })();
+}
+
+// Upload my full solved-slug set if I'm opted in and have a live token.
+// Runs from the periodic alarm and after explicit verify/refresh. No-op otherwise.
+async function uploadMySolvedSetIfOptedIn() {
+  try {
+    const data = await chrome.storage.local.get([
+      'leetsquad_cloud_sync_enabled',
+      'leetsquad_cloud_sync_token',
+      'leetsquad_cloud_sync_token_exp',
+      'leetsquad_cloud_sync_username',
+      'leetsquad_solved_sets',
+      'leetsquad_friends',
+    ]);
+    const enabled = data.leetsquad_cloud_sync_enabled !== false; // default-on
+    if (!enabled || !data.leetsquad_cloud_sync_token) return;
+    if (Date.now() >= (data.leetsquad_cloud_sync_token_exp || 0)) return;
+    const username = data.leetsquad_cloud_sync_username;
+    if (!username) return;
+
+    const allSets = data.leetsquad_solved_sets || {};
+    const selfSet = allSets[username] || { slugs: {} };
+    const slugs = Object.keys(selfSet.slugs || {});
+
+    // Also push everything we've accreted locally about our friends. Each
+    // LeetSquad user is a sensor: they see ~20 most recent ACs per friend
+    // per alarm cycle, so over time their `solved_sets[friend]` grows beyond
+    // the API window. The server unions contributions from many sensors,
+    // and every entry is bounded by the target's public `userProblemsSolved`
+    // count so a bad-faith sensor can't inflate a target's record.
+    const friendList = (data.leetsquad_friends || []).filter(
+      (f) => f && f.toLowerCase() !== username.toLowerCase()
+    );
+    const friendSets = {};
+    for (const f of friendList) {
+      const fset = allSets[f];
+      const fSlugs = fset?.slugs ? Object.keys(fset.slugs) : [];
+      if (fSlugs.length > 0) friendSets[f] = fSlugs;
+    }
+
+    const r = await fetch(`${LEETSQUAD_CLOUD_BASE}/sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${data.leetsquad_cloud_sync_token}`,
+      },
+      body: JSON.stringify({
+        slugs,
+        friend_sets: friendSets,
+        updated_at: Date.now(),
+        schema_version: 1,
+      }),
+    });
+    if (r.status === 401) {
+      await chrome.storage.local.remove([
+        'leetsquad_cloud_sync_token',
+        'leetsquad_cloud_sync_token_exp',
+      ]);
+      return;
+    }
+    if (r.ok) {
+      await chrome.storage.local.set({ leetsquad_cloud_sync_last_at: Date.now() });
+    }
+  } catch (e) {
+    console.error('uploadMySolvedSetIfOptedIn:', e?.message || e);
+  }
+}
+
+async function findOrOpenLeetCodeTab() {
+  const existing = await chrome.tabs.query({ url: 'https://leetcode.com/*' });
+  if (existing.length > 0) {
+    return { tabId: existing[0].id, opened: false };
+  }
+  const tab = await chrome.tabs.create({ url: 'https://leetcode.com/', active: false });
+  await new Promise((resolve) => {
+    const listener = (tabId, info) => {
+      if (tabId === tab.id && info.status === 'complete') {
+        chrome.tabs.onUpdated.removeListener(listener);
+        resolve();
+      }
+    };
+    chrome.tabs.onUpdated.addListener(listener);
+    setTimeout(() => {
+      chrome.tabs.onUpdated.removeListener(listener);
+      resolve();
+    }, 15000);
+  });
+  return { tabId: tab.id, opened: true };
+}
+
+async function runBioOp(tabId, op, value) {
+  const [{ result } = {}] = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: _lcBioFn,
+    args: [op, value ?? null],
+    world: 'MAIN',
+  });
+  return result || { error: 'no_result' };
+}
+
+async function verifyBioFlow({ nonce, expectedUsername }) {
+  if (!nonce) return { ok: false, error: 'missing_nonce' };
+  const { tabId, opened } = await findOrOpenLeetCodeTab();
+  try {
+    const read = await runBioOp(tabId, 'read');
+    if (read.error) return { ok: false, error: read.error };
+    if (expectedUsername && read.username.toLowerCase() !== expectedUsername.toLowerCase()) {
+      return { ok: false, error: 'wrong_signed_in_user', username: read.username };
+    }
+
+    const original = read.aboutMe || '';
+    const withNonce = original ? `${original}\n\n${nonce}` : nonce;
+    const wrote = await runBioOp(tabId, 'write', withNonce);
+    if (wrote.error) return { ok: false, error: wrote.error };
+
+    let serverResp;
+    try {
+      const r = await fetch(`${LEETSQUAD_CLOUD_BASE}/auth/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lc_username: read.username }),
+      });
+      serverResp = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        await runBioOp(tabId, 'write', original);
+        return { ok: false, error: serverResp.error || `server_${r.status}` };
+      }
+    } catch (e) {
+      await runBioOp(tabId, 'write', original);
+      return { ok: false, error: 'server_unreachable' };
+    }
+
+    await runBioOp(tabId, 'write', original);
+
+    // Trigger an initial cloud sync upload now that the token is available.
+    // Popup persists the token first; this runs on its own message.
+    return {
+      ok: true,
+      username: read.username,
+      token: serverResp.token,
+      expires_at: serverResp.expires_at,
+    };
+  } finally {
+    if (opened) {
+      chrome.tabs.remove(tabId).catch(() => {});
+    }
+  }
+}
+
 // Listen for messages from popup/content scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'uploadMySolvedSet') {
+    uploadMySolvedSetIfOptedIn().then(() => sendResponse({ ok: true }));
+    return true;
+  }
+
+  if (request.action === 'verifyBio') {
+    verifyBioFlow({ nonce: request.nonce, expectedUsername: request.expectedUsername })
+      .then(r => sendResponse(r))
+      .catch(e => sendResponse({ ok: false, error: e?.message || 'flow_failed' }));
+    return true;
+  }
+
   if (request.action === 'checkUpdates') {
     checkForNewSubmissions().then(() => sendResponse({ success: true }));
     return true;

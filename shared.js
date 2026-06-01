@@ -6,8 +6,11 @@
 // forcing unnecessary refetches.
 const LEETSQUAD_CACHE_TTL_MS = 10 * 60 * 1000;
 
+const LEETSQUAD_CLOUD_BASE = 'https://leetsquad.miro.build';
+
 const LeetSquadUtils = {
   CACHE_TTL_MS: LEETSQUAD_CACHE_TTL_MS,
+  CLOUD_BASE: LEETSQUAD_CLOUD_BASE,
 
   // Arms a delayed "slow loading" hint that swaps into the given element if
   // loading hasn't completed by `delayMs`. Common cause is LeetCode rate

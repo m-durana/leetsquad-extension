@@ -232,6 +232,24 @@
             <input type="number" id="setting-daily-goal" class="input-small" min="1" max="50" value="3" aria-label="Daily problem goal">
           </div>
 
+          <div class="setting-item cloud-sync-section" id="cloud-sync-card">
+            <div class="setting-info">
+              <span class="setting-label">Cloud Sync</span>
+              <span class="setting-desc" id="cloud-sync-desc">
+                Publishes your verified solved-problem list to
+                leetsquad.miro.build so friends see your historical solves
+                instantly. Only your LeetCode username and solved-problem
+                slugs are shared. Toggle off any time to stop syncing; to
+                also remove your data from the server, open a GitHub issue.
+              </span>
+              <div id="cloud-sync-status" class="cloud-sync-status hidden"></div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="setting-cloud-sync">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
           <div class="setting-item shortcut-section">
             <div class="setting-info">
               <span class="setting-label">Keyboard Shortcuts</span>
@@ -300,11 +318,38 @@
       </div>
       <span class="goal-streak" id="goal-streak">🔥 0 day streak</span>
     </footer>
+
+    <!-- Cloud Sync verification modal -->
+    <div id="cloud-verify-modal" class="modal hidden" role="dialog" aria-labelledby="cloud-verify-title" aria-modal="true">
+      <div class="modal-backdrop"></div>
+      <div class="modal-panel">
+        <h2 id="cloud-verify-title">Verify your LeetCode account</h2>
+        <p class="modal-body">
+          LeetSquad will briefly add a verification string to your LeetCode
+          bio, read it back from your public profile, then remove it. Your
+          existing bio is preserved.
+        </p>
+        <div class="modal-nonce">
+          <code id="cloud-verify-nonce">leetsquad-verify-...</code>
+          <button id="cloud-verify-copy" class="btn btn-secondary btn-small">Copy</button>
+        </div>
+        <div id="cloud-verify-error" class="modal-error hidden"></div>
+        <div class="modal-actions">
+          <button id="cloud-verify-cancel" class="btn btn-secondary">Cancel</button>
+          <button id="cloud-verify-go" class="btn btn-primary">Auto-verify</button>
+        </div>
+        <p class="modal-footnote">
+          Prefer to paste it yourself? Open <a href="https://leetcode.com/profile/" target="_blank" rel="noopener">leetcode.com/profile</a>,
+          paste the code into your bio, save, then come back and click Auto-verify.
+        </p>
+      </div>
+    </div>
   </div>
 
   <script src="shared.js"></script>
   <script src="api.js"></script>
   <script src="storage.js"></script>
+  <script src="cloudsync.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

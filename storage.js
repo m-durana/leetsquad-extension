@@ -9,7 +9,12 @@ const StorageManager = {
     DAILY_GOALS: 'leetsquad_daily_goals',
     CHALLENGES: 'leetsquad_challenges',
     ACTIVITY_LOG: 'leetsquad_activity',
-    SOLVED_SETS: 'leetsquad_solved_sets'
+    SOLVED_SETS: 'leetsquad_solved_sets',
+    CLOUD_SYNC_ENABLED: 'leetsquad_cloud_sync_enabled',
+    CLOUD_SYNC_TOKEN: 'leetsquad_cloud_sync_token',
+    CLOUD_SYNC_TOKEN_EXP: 'leetsquad_cloud_sync_token_exp',
+    CLOUD_SYNC_USERNAME: 'leetsquad_cloud_sync_username',
+    CLOUD_SYNC_LAST_AT: 'leetsquad_cloud_sync_last_at'
   },
 
   // Cache expiry time. Unified with the in-memory cache via LeetSquadUtils
@@ -18,11 +23,12 @@ const StorageManager = {
     || (typeof window !== 'undefined' && window.LeetSquadUtils?.CACHE_TTL_MS)
     || 10 * 60 * 1000,
 
-  // Get data from storage
+  // Get data from storage. Returns null only when the key is genuinely unset;
+  // falsy values like `false` or `0` round-trip intact.
   async get(key) {
     return new Promise((resolve) => {
       chrome.storage.local.get([key], (result) => {
-        resolve(result[key] || null);
+        resolve(result[key] !== undefined ? result[key] : null);
       });
     });
   },

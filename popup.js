@@ -1,5 +1,12 @@
 // LeetSquad - Popup Script
 document.addEventListener('DOMContentLoaded', async () => {
+  // Opportunistic cloud sync push. The 30-min background alarm is the
+  // baseline cadence; opening the popup gives us a free, user-driven trigger
+  // so observations made since the last alarm propagate immediately. The
+  // background worker re-checks opt-in + token; this is a fire-and-forget
+  // nudge and never blocks popup rendering.
+  try { chrome.runtime?.sendMessage?.({ action: 'uploadMySolvedSet' }); } catch (e) {}
+
   // DOM Elements
   const tabs = document.querySelectorAll('.tab');
   const tabContents = document.querySelectorAll('.tab-content');
@@ -983,6 +990,161 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await renderSignInState();
     await renderShortcuts();
+    await renderCloudSyncStatus();
+  }
+
+  // ===== Cloud Sync (Phase B1: verify only) =====
+
+  const settingCloudSync = document.getElementById('setting-cloud-sync');
+  const cloudSyncStatusEl = document.getElementById('cloud-sync-status');
+  const cloudVerifyModal = document.getElementById('cloud-verify-modal');
+  const cloudVerifyNonceEl = document.getElementById('cloud-verify-nonce');
+  const cloudVerifyCopyBtn = document.getElementById('cloud-verify-copy');
+  const cloudVerifyGoBtn = document.getElementById('cloud-verify-go');
+  const cloudVerifyCancelBtn = document.getElementById('cloud-verify-cancel');
+  const cloudVerifyErrorEl = document.getElementById('cloud-verify-error');
+
+  let pendingCloudUsername = null;
+
+  async function renderCloudSyncStatus() {
+    if (!settingCloudSync || !cloudSyncStatusEl) return;
+    const status = await CloudSync.getStatus();
+    settingCloudSync.checked = !!status.enabled;
+    cloudSyncStatusEl.classList.remove('connected', 'expired', 'error');
+    if (status.enabled && status.verified) {
+      cloudSyncStatusEl.classList.remove('hidden');
+      cloudSyncStatusEl.classList.add('connected');
+      const safe = LeetSquadUtils.escapeHtml(status.username || '');
+      const last = status.lastSync ? LeetSquadUtils.timeAgoMs(status.lastSync) : 'pending';
+      cloudSyncStatusEl.textContent = `Connected as @${safe} · synced ${last}.`;
+    } else if (status.enabled && status.tokenExpired) {
+      cloudSyncStatusEl.classList.remove('hidden');
+      cloudSyncStatusEl.classList.add('expired');
+      cloudSyncStatusEl.innerHTML = `Token expired. <a href="#" id="cloud-sync-reverify">Re-verify</a>`;
+      document.getElementById('cloud-sync-reverify')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        beginCloudVerify();
+      });
+    } else {
+      cloudSyncStatusEl.classList.add('hidden');
+      cloudSyncStatusEl.textContent = '';
+    }
+  }
+
+  settingCloudSync?.addEventListener('change', async (e) => {
+    if (e.target.checked) {
+      await beginCloudVerify();
+    } else {
+      await CloudSync.disconnect();
+      await renderCloudSyncStatus();
+    }
+  });
+
+  async function beginCloudVerify() {
+    let username = await StorageManager.getMyUsername();
+    if (!username) {
+      try {
+        const me = await LeetCodeAPI.getCurrentUser();
+        if (me?.isSignedIn && me.username) username = me.username;
+      } catch (e) {}
+    }
+    if (!username) {
+      showToast('Set your LeetCode username first', true);
+      settingCloudSync.checked = false;
+      return;
+    }
+    pendingCloudUsername = username;
+
+    cloudVerifyErrorEl.classList.add('hidden');
+    cloudVerifyErrorEl.textContent = '';
+    cloudVerifyGoBtn.disabled = false;
+    cloudVerifyGoBtn.textContent = 'Auto-verify';
+
+    try {
+      const { nonce } = await CloudSync.startAuth(username);
+      cloudVerifyNonceEl.textContent = nonce;
+      cloudVerifyModal.classList.remove('hidden');
+    } catch (e) {
+      settingCloudSync.checked = false;
+      showToast('Could not reach LeetSquad server', true);
+    }
+  }
+
+  cloudVerifyCopyBtn?.addEventListener('click', () => {
+    const text = cloudVerifyNonceEl.textContent || '';
+    navigator.clipboard?.writeText(text).then(() => {
+      cloudVerifyCopyBtn.textContent = 'Copied';
+      setTimeout(() => { cloudVerifyCopyBtn.textContent = 'Copy'; }, 1500);
+    });
+  });
+
+  cloudVerifyCancelBtn?.addEventListener('click', async () => {
+    cloudVerifyModal.classList.add('hidden');
+    settingCloudSync.checked = false;
+    await renderCloudSyncStatus();
+  });
+
+  cloudVerifyGoBtn?.addEventListener('click', async () => {
+    if (!pendingCloudUsername) return;
+    cloudVerifyGoBtn.disabled = true;
+    cloudVerifyGoBtn.textContent = 'Verifying...';
+    cloudVerifyErrorEl.classList.add('hidden');
+
+    try {
+      const resp = await new Promise((resolve) => {
+        chrome.runtime.sendMessage(
+          { action: 'verifyBio', nonce: cloudVerifyNonceEl.textContent, expectedUsername: pendingCloudUsername },
+          (r) => resolve(r || { ok: false, error: 'no_response' })
+        );
+      });
+
+      if (!resp.ok) {
+        cloudVerifyErrorEl.textContent = humanizeVerifyError(resp.error, resp.username);
+        cloudVerifyErrorEl.classList.remove('hidden');
+        cloudVerifyGoBtn.disabled = false;
+        cloudVerifyGoBtn.textContent = 'Retry';
+        return;
+      }
+
+      await CloudSync.storeToken({
+        token: resp.token,
+        expires_at: resp.expires_at,
+        username: resp.username,
+      });
+      await CloudSync.setEnabled(true);
+      cloudVerifyModal.classList.add('hidden');
+      await renderCloudSyncStatus();
+      showToast(`Connected as @${resp.username}`);
+      // Upload work itself runs entirely in the background worker. The popup
+      // only nudges it so the first sync happens immediately rather than at
+      // the next 30-min alarm tick.
+      chrome.runtime.sendMessage({ action: 'uploadMySolvedSet' });
+    } catch (e) {
+      cloudVerifyErrorEl.textContent = 'Verification failed. Try again.';
+      cloudVerifyErrorEl.classList.remove('hidden');
+      cloudVerifyGoBtn.disabled = false;
+      cloudVerifyGoBtn.textContent = 'Retry';
+    }
+  });
+
+  function humanizeVerifyError(code, otherUser) {
+    switch (code) {
+      case 'not_signed_in':
+        return 'You are not signed in to leetcode.com. Sign in and try again.';
+      case 'wrong_signed_in_user':
+        return `Your leetcode.com tab is signed in as @${otherUser || '?'}, not @${pendingCloudUsername}. Switch accounts and try again.`;
+      case 'no_csrf':
+        return 'Could not read your LeetCode session. Reload leetcode.com and try again.';
+      case 'nonce_not_found_in_bio':
+        return 'The verification string did not reach your public profile. LeetCode may have caches lagging; wait a moment and click Retry.';
+      case 'update_failed':
+        return 'LeetCode rejected the bio update. Try the manual paste path below.';
+      case 'leetcode_unreachable':
+      case 'server_unreachable':
+        return 'Network error. Check your connection and retry.';
+      default:
+        return code ? `Verification failed (${code}).` : 'Verification failed.';
+    }
   }
 
   // If the user is signed in to leetcode.com, collapse the "Sign in

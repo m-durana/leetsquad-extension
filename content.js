@@ -338,6 +338,15 @@
       // Step 1: Show stale cached results immediately (non-blocking)
       const staleShown = await showStaleResults(widget, content, allUsers, myUsername, problemSlug);
 
+      // Step 1.5: For any friends who publish to LeetSquad cloud sync, pull
+      // their solved-slug set and merge it locally. This is what makes Two
+      // Sum and other old solves appear instantly without waiting for the
+      // 20-recent API window to slowly accrete. Best-effort; failures are
+      // silent and the rest of the flow still works via the existing paths.
+      if (typeof CloudSync !== 'undefined') {
+        await Promise.all(allUsers.map(u => CloudSync.fetchAndMergeFriend(u).catch(() => null)));
+      }
+
       // Step 2: Consult the persistent solved-slug set first. Friends who
       // have this slug cached are an instant "yes" without any API call,
       // which is what makes Two Sum (and other old solves) actually appear.
