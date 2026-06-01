@@ -14,7 +14,8 @@ const StorageManager = {
     CLOUD_SYNC_TOKEN: 'leetsquad_cloud_sync_token',
     CLOUD_SYNC_TOKEN_EXP: 'leetsquad_cloud_sync_token_exp',
     CLOUD_SYNC_USERNAME: 'leetsquad_cloud_sync_username',
-    CLOUD_SYNC_LAST_AT: 'leetsquad_cloud_sync_last_at'
+    CLOUD_SYNC_LAST_AT: 'leetsquad_cloud_sync_last_at',
+    CLOUD_SYNC_API_KEY: 'leetsquad_cloud_sync_api_key'
   },
 
   // Cache expiry time. Unified with the in-memory cache via LeetSquadUtils

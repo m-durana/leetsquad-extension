@@ -1,10 +1,10 @@
 const LEETCODE_GRAPHQL = 'https://leetcode.com/graphql/';
 
-const ABOUT_ME_QUERY = `
+const SKILL_TAGS_QUERY = `
   query userPublicProfile($username: String!) {
     matchedUser(username: $username) {
       username
-      profile { aboutMe }
+      profile { skillTags }
     }
   }
 `;
@@ -43,7 +43,7 @@ export async function getPublicSolvedCount(username: string): Promise<number | n
   return all?.count ?? 0;
 }
 
-export async function getPublicAboutMe(username: string): Promise<string | null> {
+export async function getPublicSkillTags(username: string): Promise<string[] | null> {
   const res = await fetch(LEETCODE_GRAPHQL, {
     method: 'POST',
     headers: {
@@ -52,7 +52,7 @@ export async function getPublicAboutMe(username: string): Promise<string | null>
       'Referer': `https://leetcode.com/u/${encodeURIComponent(username)}/`,
     },
     body: JSON.stringify({
-      query: ABOUT_ME_QUERY,
+      query: SKILL_TAGS_QUERY,
       variables: { username },
       operationName: 'userPublicProfile',
     }),
@@ -60,9 +60,9 @@ export async function getPublicAboutMe(username: string): Promise<string | null>
 
   if (!res.ok) throw new Error(`LeetCode GraphQL HTTP ${res.status}`);
   const json = (await res.json()) as {
-    data?: { matchedUser?: { profile?: { aboutMe?: string | null } | null } | null };
+    data?: { matchedUser?: { profile?: { skillTags?: string[] | null } | null } | null };
   };
   const user = json.data?.matchedUser;
   if (!user) return null;
-  return user.profile?.aboutMe ?? '';
+  return user.profile?.skillTags ?? [];
 }

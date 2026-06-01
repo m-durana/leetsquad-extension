@@ -118,10 +118,7 @@
     `;
   }
 
-  // Render "no one solved" state. LeetCode's API only surfaces each friend's
-  // most recent ~20 accepted submissions, so older solves are invisible until
-  // the background alarm has had time to accrete them into the local set.
-  // We say so explicitly instead of silently lying.
+  // LeetCode caps recent ACs at ~20 per friend; older solves only appear after the alarm accretes them.
   function renderNoSolvedState(problemSlug) {
     return `
       <div class="leetsquad-empty-minimal">
@@ -142,7 +139,7 @@
   }
 
   // Update widget UI with solved users list
-  function updateWidgetUI(widget, content, solvedUsers, myUsername, problemSlug) {
+  async function updateWidgetUI(widget, content, solvedUsers, myUsername, problemSlug) {
     // Update badge count
     const shouldShowBadge = solvedUsers.length > 1 ||
                             (solvedUsers.length === 1 && solvedUsers[0].username !== myUsername);
@@ -338,20 +335,12 @@
       // Step 1: Show stale cached results immediately (non-blocking)
       const staleShown = await showStaleResults(widget, content, allUsers, myUsername, problemSlug);
 
-      // Step 1.5: For any friends who publish to LeetSquad cloud sync, pull
-      // their solved-slug set and merge it locally. This is what makes Two
-      // Sum and other old solves appear instantly without waiting for the
-      // 20-recent API window to slowly accrete. Best-effort; failures are
-      // silent and the rest of the flow still works via the existing paths.
+      // Merge cloud-published solved sets so old solves appear instantly; best-effort, silent on failure.
       if (typeof CloudSync !== 'undefined') {
         await Promise.all(allUsers.map(u => CloudSync.fetchAndMergeFriend(u).catch(() => null)));
       }
 
-      // Step 2: Consult the persistent solved-slug set first. Friends who
-      // have this slug cached are an instant "yes" without any API call,
-      // which is what makes Two Sum (and other old solves) actually appear.
-      // For friends whose cached set doesn't include this slug, the recent
-      // API check is still authoritative (their cache may just be incomplete).
+      // Cached solved-set is an instant "yes" without an API call; recent-AC fallback still authoritative when missing.
       const slugSetResults = await Promise.all(allUsers.map(async (u) => {
         const ts = await StorageManager.getSolvedSlugTimestamp(u, problemSlug);
         return { username: u, cachedTimestamp: ts };

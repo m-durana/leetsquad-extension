@@ -3,20 +3,20 @@ import request from 'supertest';
 import { unlinkSync, existsSync } from 'node:fs';
 
 vi.mock('../src/leetcode', () => ({
-  getPublicAboutMe: vi.fn(),
+  getPublicSkillTags: vi.fn(),
 }));
 
 import { createApp } from '../src/app';
 import { db } from '../src/db';
-import { getPublicAboutMe } from '../src/leetcode';
+import { getPublicSkillTags } from '../src/leetcode';
 import jwt from 'jsonwebtoken';
 
-const mockedAboutMe = vi.mocked(getPublicAboutMe);
+const mockedSkillTags = vi.mocked(getPublicSkillTags);
 const app = createApp();
 
 beforeEach(() => {
-  db.exec('DELETE FROM auth_nonces; DELETE FROM users;');
-  mockedAboutMe.mockReset();
+  db.exec('DELETE FROM api_keys; DELETE FROM auth_nonces; DELETE FROM users;');
+  mockedSkillTags.mockReset();
 });
 
 afterAll(() => {
@@ -54,11 +54,14 @@ describe('POST /auth/verify', () => {
     const start = await request(app).post('/auth/start').send({ lc_username: 'bob' });
     const nonce = start.body.nonce;
 
-    mockedAboutMe.mockResolvedValueOnce(`hello world ${nonce} thanks`);
+    mockedSkillTags.mockResolvedValueOnce(['javascript', nonce, 'algorithms']);
 
     const r = await request(app).post('/auth/verify').send({ lc_username: 'bob' });
     expect(r.status).toBe(200);
     expect(r.body.token).toBeTruthy();
+    expect(r.body.api_key).toMatch(/^ls_pk_/);
+    expect(r.body.api_key_prefix).toMatch(/^ls_pk_/);
+    expect(r.body.api_key_tier).toBe('free');
 
     const claims = jwt.verify(r.body.token, process.env.JWT_SECRET!) as { lc_username: string };
     expect(claims.lc_username).toBe('bob');
@@ -74,12 +77,12 @@ describe('POST /auth/verify', () => {
     expect(noncesLeft.c).toBe(0);
   });
 
-  it('rejects when bio does not contain the nonce', async () => {
+  it('rejects when skillTags do not contain the nonce', async () => {
     await request(app).post('/auth/start').send({ lc_username: 'carol' });
-    mockedAboutMe.mockResolvedValueOnce('nothing relevant here');
+    mockedSkillTags.mockResolvedValueOnce(['python', 'sql']);
     const r = await request(app).post('/auth/verify').send({ lc_username: 'carol' });
     expect(r.status).toBe(403);
-    expect(r.body.error).toBe('nonce_not_found_in_bio');
+    expect(r.body.error).toBe('nonce_not_found_in_skills');
   });
 
   it('returns 403 when no active nonce exists', async () => {
@@ -90,14 +93,14 @@ describe('POST /auth/verify', () => {
 
   it('returns 404 when LeetCode reports user not found', async () => {
     await request(app).post('/auth/start').send({ lc_username: 'ghost' });
-    mockedAboutMe.mockResolvedValueOnce(null);
+    mockedSkillTags.mockResolvedValueOnce(null);
     const r = await request(app).post('/auth/verify').send({ lc_username: 'ghost' });
     expect(r.status).toBe(404);
   });
 
   it('returns 502 when LeetCode call throws', async () => {
     await request(app).post('/auth/start').send({ lc_username: 'dave' });
-    mockedAboutMe.mockRejectedValueOnce(new Error('boom'));
+    mockedSkillTags.mockRejectedValueOnce(new Error('boom'));
     const r = await request(app).post('/auth/verify').send({ lc_username: 'dave' });
     expect(r.status).toBe(502);
   });

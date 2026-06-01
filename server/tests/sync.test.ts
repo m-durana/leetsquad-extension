@@ -3,17 +3,16 @@ import request from 'supertest';
 import { unlinkSync, existsSync } from 'node:fs';
 
 vi.mock('../src/leetcode', () => ({
-  getPublicAboutMe: vi.fn(),
+  getPublicSkillTags: vi.fn(),
   getPublicSolvedCount: vi.fn(),
 }));
 
 import { createApp } from '../src/app';
 import { db } from '../src/db';
-import { getPublicSolvedCount, getPublicAboutMe } from '../src/leetcode';
+import { getPublicSolvedCount } from '../src/leetcode';
 import { signToken } from '../src/jwt';
 
 const mockedCount = vi.mocked(getPublicSolvedCount);
-const mockedAbout = vi.mocked(getPublicAboutMe);
 const app = createApp();
 
 function authHeader(username: string) {
@@ -27,7 +26,6 @@ beforeEach(() => {
   );
   db.prepare('INSERT INTO users (lc_username, verified_at, last_sync_at) VALUES (?, ?, 0)').run('alice', Date.now());
   mockedCount.mockReset();
-  mockedAbout.mockReset();
 });
 
 afterAll(() => {

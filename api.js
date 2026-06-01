@@ -285,11 +285,7 @@ const LeetCodeAPI = {
     return Array.from(out.entries()).map(([titleSlug, timestamp]) => ({ titleSlug, timestamp }));
   },
 
-  // ============= Logged-in User Detection =============
-
-  // Returns { username, isSignedIn } for whoever is logged in to leetcode.com
-  // in this browser, or { isSignedIn: false } if no session. Uses the
-  // anonymous-friendly `globalData` query so it works without a CSRF token.
+  // Returns { username, isSignedIn } via the anonymous-friendly globalData query (no CSRF needed).
   async getCurrentUser() {
     const query = `
       query globalData {

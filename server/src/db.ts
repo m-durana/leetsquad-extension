@@ -21,10 +21,7 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_nonces_exp ON auth_nonces(expires_at);
 
-  -- No FK to users: rows can be created by crowdsourced uploads from
-  -- contributors who know about a LeetCode handle that has not (yet)
-  -- self-verified with us. DELETE happens explicitly via the issue-driven
-  -- deletion process, not by cascade.
+  -- No FK to users: rows can exist for handles that have not self-verified yet.
   CREATE TABLE IF NOT EXISTS solved_sets (
     lc_username        TEXT PRIMARY KEY,
     slugs_json         TEXT NOT NULL,
@@ -39,10 +36,7 @@ db.exec(`
     fetched_at  INTEGER NOT NULL
   );
 
-  -- Per (target, contributor) pair: this contributor's accreted claim about
-  -- this target's solved slugs. solved_sets[target].slugs_json is derived
-  -- as the union across all contributors for that target and is recomputed
-  -- on every write here.
+  -- solved_sets[target] is the union across all rows here for that target, recomputed on write.
   CREATE TABLE IF NOT EXISTS contributions (
     target_username      TEXT NOT NULL,
     contributor_username TEXT NOT NULL,
@@ -52,6 +46,30 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_contributions_target ON contributions(target_username);
   CREATE INDEX IF NOT EXISTS idx_contributions_contributor ON contributions(contributor_username);
+
+  CREATE INDEX IF NOT EXISTS idx_solved_sets_updated_at ON solved_sets(updated_at);
+
+  -- Plaintext never stored; key_hash is sha256, prefix is the non-secret head for log correlation.
+  CREATE TABLE IF NOT EXISTS api_keys (
+    key_hash      TEXT PRIMARY KEY,
+    prefix        TEXT NOT NULL,
+    lc_username   TEXT NOT NULL,
+    tier          TEXT NOT NULL DEFAULT 'free',
+    created_at    INTEGER NOT NULL,
+    last_used_at  INTEGER,
+    revoked_at    INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_api_keys_username ON api_keys(lc_username);
+  CREATE INDEX IF NOT EXISTS idx_api_keys_prefix   ON api_keys(prefix);
+
+  -- Internal-only; never exposed via /api/v1. Restores the user's list across reinstalls.
+  CREATE TABLE IF NOT EXISTS user_friends (
+    lc_username     TEXT NOT NULL,
+    friend_username TEXT NOT NULL,
+    added_at        INTEGER NOT NULL,
+    PRIMARY KEY (lc_username, friend_username)
+  );
+  CREATE INDEX IF NOT EXISTS idx_user_friends_owner ON user_friends(lc_username);
 `);
 
 export const stmts = {
@@ -133,6 +151,45 @@ export const stmts = {
   ),
   deleteContributionsByContributor: db.prepare(
     `DELETE FROM contributions WHERE contributor_username = ?`
+  ),
+
+  // API keys.
+  insertApiKey: db.prepare(
+    `INSERT INTO api_keys (key_hash, prefix, lc_username, tier, created_at)
+     VALUES (?, ?, ?, ?, ?)`
+  ),
+  getApiKeyByHash: db.prepare(
+    `SELECT key_hash, prefix, lc_username, tier, created_at, last_used_at, revoked_at
+     FROM api_keys WHERE key_hash = ?`
+  ),
+  getLiveKeyForUser: db.prepare(
+    `SELECT key_hash, prefix, lc_username, tier, created_at
+     FROM api_keys
+     WHERE lc_username = ? AND revoked_at IS NULL
+     ORDER BY created_at DESC LIMIT 1`
+  ),
+  revokeKeysForUser: db.prepare(
+    `UPDATE api_keys SET revoked_at = ?
+     WHERE lc_username = ? AND revoked_at IS NULL`
+  ),
+  touchApiKeyUsage: db.prepare(
+    `UPDATE api_keys SET last_used_at = ? WHERE key_hash = ?`
+  ),
+  deleteApiKeysForUser: db.prepare(`DELETE FROM api_keys WHERE lc_username = ?`),
+
+  // user_friends.
+  getFriendsForUser: db.prepare(
+    `SELECT friend_username, added_at FROM user_friends
+     WHERE lc_username = ?
+     ORDER BY friend_username ASC`
+  ),
+  insertFriend: db.prepare(
+    `INSERT OR IGNORE INTO user_friends (lc_username, friend_username, added_at)
+     VALUES (?, ?, ?)`
+  ),
+  deleteFriendsForUser: db.prepare(`DELETE FROM user_friends WHERE lc_username = ?`),
+  deleteUserFromAllFriendLists: db.prepare(
+    `DELETE FROM user_friends WHERE friend_username = ?`
   ),
 };
 

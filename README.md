@@ -17,7 +17,7 @@ Browser extension that adds social features to LeetCode: see which friends solve
 
 ## Sign-in
 
-Sign-in is fully Optional. The leaderboard, activity feed, and "who solved this" widget all work using LeetCode's public data. Signing in at leetcode.com unlocks the Beats X% runtime badges and auto-detects your username.
+Sign-in is fully optional. The leaderboard, activity feed, and "who solved this" widget all work using LeetCode's public data. Signing in at leetcode.com unlocks the Beats X% runtime badges and auto-detects your username.
 
 ## Cloud sync
 
@@ -31,15 +31,20 @@ Cloud sync is on by default to make the widget useful out of the box. You can di
 
 ### Deleting your data
 
-To request deletion of your published data, open a [GitHub issue](https://github.com/m-durana/leetsquad-extension/issues) titled "Data deletion request: `<your-leetcode-username>`" with a screenshot of you being logged into LeetCode. I'll delete on receipt; usually within a day. (This is to prevent hijacking or compromised browsers wiping/altering your data on the server.)
+The fastest path is the extension: open Settings, scroll to Cloud Sync, click Delete my data. That will wipe and and all data about you from the server, including your API keys. It's a hard delete with no tombstones but re-enabling Cloud Sync rebuilds the row from scratch.
+
+If you've lost your JWT (extension uninstalled, browser wiped), open a [GitHub issue](https://github.com/m-durana/leetsquad-extension/issues) titled `Data deletion request: <your-leetcode-handle>` with a screenshot of you signed into that LeetCode account.
 
 ## Permissions
 
-- `storage`: friends list, settings, local cache.
-- `alarms`: periodic background refresh.
+- `storage`: friends list, settings, local cache, and (when Cloud Sync is on) your verification JWT and personal API key.
+- `alarms`: periodic background refresh and Cloud Sync push.
 - `notifications`: opt-in alerts when friends solve.
-- `cookies`: read the leetcode.com session cookie when present.
-- `scripting`: write the one-time verification nonce into your LeetCode bio during sign-up.
+- `cookies`: read the leetcode.com session cookie when present, so signed-in users get private-data features (runtime percentile, auto-detected username).
+- `scripting`: write the one-time verification nonce into your LeetCode bio during sign-up, then remove it.
+- Host access:
+  - `https://leetcode.com/*`: read your public profile and friends' public solved lists; write the verification nonce during sign-up.
+  - `https://leetsquad.miro.build/*`: the Cloud Sync server and public read-only API.
 
 ## Build from source
 

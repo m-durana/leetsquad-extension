@@ -1,11 +1,9 @@
 // LeetSquad - Popup Script
 document.addEventListener('DOMContentLoaded', async () => {
-  // Opportunistic cloud sync push. The 30-min background alarm is the
-  // baseline cadence; opening the popup gives us a free, user-driven trigger
-  // so observations made since the last alarm propagate immediately. The
-  // background worker re-checks opt-in + token; this is a fire-and-forget
+  // Free user-driven push on popup-open; background worker re-checks opt-in + token, fire-and-forget
   // nudge and never blocks popup rendering.
   try { chrome.runtime?.sendMessage?.({ action: 'uploadMySolvedSet' }); } catch (e) {}
+  try { chrome.runtime?.sendMessage?.({ action: 'syncFriends' }); } catch (e) {}
 
   // DOM Elements
   const tabs = document.querySelectorAll('.tab');
@@ -18,6 +16,121 @@ document.addEventListener('DOMContentLoaded', async () => {
   const friendsBtn = document.getElementById('friends-btn');
   const friendsPanel = document.getElementById('friends-panel');
   const friendsBackBtn = document.getElementById('friends-back-btn');
+  const cloudSyncPanel = document.getElementById('cloud-sync-panel');
+  const cloudSyncBackBtn = document.getElementById('cloud-sync-back-btn');
+  const openCloudSyncPanelBtn = document.getElementById('open-cloud-sync-panel');
+  const cloudSyncNavStatus = document.getElementById('cloud-sync-nav-status');
+  const verifyBanner = document.getElementById('verify-banner');
+  const verifyBannerBtn = document.getElementById('verify-banner-btn');
+  const verifyBannerDismiss = document.getElementById('verify-banner-dismiss');
+
+  const VERIFY_BANNER_REPROMPT_MS = 7 * 24 * 60 * 60 * 1000;
+
+  async function renderVerifyBanner() {
+    if (!verifyBanner) return;
+    try {
+      const status = await CloudSync.getStatus();
+      if (!status.enabled || status.verified) {
+        verifyBanner.classList.add('hidden');
+        return;
+      }
+      const data = await new Promise((res) => chrome.storage.local.get('leetsquad_verify_banner_dismissed', res));
+      const last = data?.leetsquad_verify_banner_dismissed || 0;
+      if (Date.now() - last < VERIFY_BANNER_REPROMPT_MS) {
+        verifyBanner.classList.add('hidden');
+        return;
+      }
+      verifyBanner.classList.remove('hidden');
+    } catch (e) {
+      verifyBanner.classList.add('hidden');
+    }
+  }
+
+  verifyBannerDismiss?.addEventListener('click', async () => {
+    await chrome.storage.local.set({ leetsquad_verify_banner_dismissed: Date.now() });
+    verifyBanner?.classList.add('hidden');
+  });
+
+  let verifyInflight = false;
+  async function inlineVerifyFromBanner() {
+    if (!verifyBannerBtn || verifyInflight) return;
+    verifyInflight = true;
+    const restore = () => {
+      verifyBannerBtn.disabled = false;
+      verifyBannerBtn.textContent = 'Verify';
+      verifyInflight = false;
+    };
+    verifyBannerBtn.disabled = true;
+    verifyBannerBtn.textContent = '…';
+
+    let username = await StorageManager.getMyUsername();
+    if (!username) {
+      try {
+        const me = await LeetCodeAPI.getCurrentUser();
+        if (me?.isSignedIn && me.username) username = me.username;
+      } catch (e) {}
+    }
+    if (!username) {
+      restore();
+      settingsPanel?.classList.remove('hidden');
+      cloudSyncPanel?.classList.remove('hidden');
+      renderCloudSyncStatus();
+      beginCloudVerify();
+      return;
+    }
+
+    let nonce;
+    try {
+      const r = await CloudSync.startAuth(username);
+      nonce = r.nonce;
+    } catch (e) {
+      restore();
+      showToast('Could not reach LeetSquad server', true);
+      return;
+    }
+
+    const resp = await new Promise((resolve) => {
+      chrome.runtime.sendMessage(
+        { action: 'verifyBio', nonce, expectedUsername: username },
+        (r) => resolve(r || { ok: false, error: 'no_response' })
+      );
+    });
+
+    if (!resp.ok) {
+      restore();
+      const code = resp.error || 'unknown';
+      showFailureToast(`Verify failed (${code}).`, code, { kind: 'verify', username });
+      return;
+    }
+
+    await CloudSync.storeToken({
+      token: resp.token,
+      expires_at: resp.expires_at,
+      username: resp.username,
+      api_key: resp.api_key,
+    });
+    await CloudSync.setEnabled(true);
+    await renderCloudSyncStatus();
+    await updateCloudSyncNavStatus();
+
+    verifyBannerBtn.textContent = '✓ Verified';
+    chrome.runtime.sendMessage({ action: 'uploadMySolvedSet' });
+    reconcileFriendsAfterVerify().catch((e) => console.error('friend reconcile:', e));
+    setTimeout(() => {
+      verifyBanner?.classList.add('hidden');
+      restore();
+    }, 1200);
+  }
+
+  verifyBannerBtn?.addEventListener('click', () => {
+    inlineVerifyFromBanner().catch((e) => {
+      console.error('inline verify:', e);
+      if (verifyBannerBtn) {
+        verifyBannerBtn.disabled = false;
+        verifyBannerBtn.textContent = 'Verify';
+      }
+    });
+  });
   
   // Friends tab elements
   const myUsernameInput = document.getElementById('my-username');
@@ -118,6 +231,38 @@ document.addEventListener('DOMContentLoaded', async () => {
   friendsBackBtn.addEventListener('click', () => {
     friendsPanel.classList.add('hidden');
   });
+
+  openCloudSyncPanelBtn?.addEventListener('click', () => {
+    cloudSyncPanel?.classList.remove('hidden');
+    renderCloudSyncStatus();
+  });
+
+  cloudSyncBackBtn?.addEventListener('click', () => {
+    cloudSyncPanel?.classList.add('hidden');
+    updateCloudSyncNavStatus();
+  });
+
+  async function updateCloudSyncNavStatus() {
+    if (!cloudSyncNavStatus) return;
+    try {
+      const status = await CloudSync.getStatus();
+      if (status.enabled && status.verified) {
+        cloudSyncNavStatus.textContent = `Connected as @${status.username || ''}`;
+        cloudSyncNavStatus.className = 'cloud-sync-nav-status connected';
+      } else if (status.enabled && status.tokenExpired) {
+        cloudSyncNavStatus.textContent = 'Token expired';
+        cloudSyncNavStatus.className = 'cloud-sync-nav-status expired';
+      } else if (status.enabled) {
+        cloudSyncNavStatus.textContent = '● Not verified';
+        cloudSyncNavStatus.className = 'cloud-sync-nav-status pending';
+      } else {
+        cloudSyncNavStatus.textContent = 'Off';
+        cloudSyncNavStatus.className = 'cloud-sync-nav-status off';
+      }
+    } catch (e) {
+      cloudSyncNavStatus.textContent = '';
+    }
+  }
 
   // My username
   async function loadMyUsername() {
@@ -221,6 +366,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       friendUsernameInput.value = '';
       showToast(`Added ${username}!`);
       bootstrapFromSolutions(username).catch(() => {});
+      // Persist the new friend list to the cloud (no-op if cloud sync is off).
+      try { chrome.runtime?.sendMessage?.({ action: 'syncFriends' }); } catch (e) {}
       loadFriends();
       loadLeaderboard();
     } catch (error) {
@@ -297,6 +444,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       btn.addEventListener('click', async (e) => {
         const username = e.currentTarget.dataset.username;
         await StorageManager.removeFriend(username);
+        try { chrome.runtime?.sendMessage?.({ action: 'syncFriends' }); } catch (err) {}
         loadFriends();
         loadLeaderboard();
         showToast(`Removed ${username}`);
@@ -370,10 +518,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return 0; // all time
   }
 
-  // Count submissions in a time period.
-  // NOTE: LeetCode's recentSubmissionList does NOT expose difficulty per submission,
-  // so the per-difficulty breakdown is only populated when difficulty is known. The
-  // total is always accurate; easy/medium/hard may sum to less than total.
+  // recentSubmissionList omits difficulty, so easy/medium/hard may sum to less than total.
   function countSubmissionsInPeriod(submissions, periodStart) {
     if (!submissions?.submission) return { total: 0, easy: 0, medium: 0, hard: 0 };
 
@@ -546,10 +691,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       .map((user, index) => renderLeaderboardItem(user, index, myUsername))
       .join('');
 
-    // Stash the processed users + myUsername so the period selector can
-    // re-sort synchronously without going back to the network. This is what
-    // makes the FLIP animation jitter-free: no await means no paint of the
-    // new natural positions before we invert.
+    // Sync re-sort keeps FLIP jitter-free: no await means no paint of new natural positions before invert.
     lastLeaderboardUsersData = usersData;
     lastLeaderboardMyUsername = myUsername;
   }
@@ -991,6 +1133,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await renderSignInState();
     await renderShortcuts();
     await renderCloudSyncStatus();
+    await updateCloudSyncNavStatus();
   }
 
   // ===== Cloud Sync (Phase B1: verify only) =====
@@ -1004,7 +1147,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   const cloudVerifyCancelBtn = document.getElementById('cloud-verify-cancel');
   const cloudVerifyErrorEl = document.getElementById('cloud-verify-error');
 
+  const apiKeyRow = document.getElementById('cloud-sync-api-key');
+  const apiKeyInput = document.getElementById('api-key-input');
+  const apiKeyCopyBtn = document.getElementById('api-key-copy');
+  const apiKeyRotateBtn = document.getElementById('api-key-rotate');
+  const deleteMyDataBtn = document.getElementById('cloud-sync-delete-data');
+
   let pendingCloudUsername = null;
+
+  async function renderApiKeyRow(verified) {
+    if (!apiKeyRow) return;
+    if (!verified) {
+      apiKeyRow.classList.add('hidden');
+      if (apiKeyInput) apiKeyInput.value = '';
+      return;
+    }
+    apiKeyRow.classList.remove('hidden');
+    const key = await CloudSync.getApiKey();
+    if (apiKeyInput) {
+      apiKeyInput.value = key || '';
+      apiKeyInput.placeholder = key ? '' : '(none locally — click ↻ to regenerate)';
+    }
+  }
 
   async function renderCloudSyncStatus() {
     if (!settingCloudSync || !cloudSyncStatusEl) return;
@@ -1017,6 +1181,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const safe = LeetSquadUtils.escapeHtml(status.username || '');
       const last = status.lastSync ? LeetSquadUtils.timeAgoMs(status.lastSync) : 'pending';
       cloudSyncStatusEl.textContent = `Connected as @${safe} · synced ${last}.`;
+      await renderApiKeyRow(true);
     } else if (status.enabled && status.tokenExpired) {
       cloudSyncStatusEl.classList.remove('hidden');
       cloudSyncStatusEl.classList.add('expired');
@@ -1025,9 +1190,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         e.preventDefault();
         beginCloudVerify();
       });
+      await renderApiKeyRow(false);
     } else {
       cloudSyncStatusEl.classList.add('hidden');
       cloudSyncStatusEl.textContent = '';
+      await renderApiKeyRow(false);
     }
   }
 
@@ -1037,6 +1204,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
       await CloudSync.disconnect();
       await renderCloudSyncStatus();
+      await updateCloudSyncNavStatus();
+      await renderVerifyBanner();
     }
   });
 
@@ -1110,20 +1279,110 @@ document.addEventListener('DOMContentLoaded', async () => {
         token: resp.token,
         expires_at: resp.expires_at,
         username: resp.username,
+        api_key: resp.api_key,
       });
       await CloudSync.setEnabled(true);
       cloudVerifyModal.classList.add('hidden');
       await renderCloudSyncStatus();
+      await updateCloudSyncNavStatus();
+      await renderVerifyBanner();
       showToast(`Connected as @${resp.username}`);
       // Upload work itself runs entirely in the background worker. The popup
       // only nudges it so the first sync happens immediately rather than at
       // the next 30-min alarm tick.
       chrome.runtime.sendMessage({ action: 'uploadMySolvedSet' });
+
+      // Restore / reconcile the friend list against the server. If the lists
+      // disagree, prompt the user to choose. Runs after verify-success so
+      // the JWT is in place.
+      reconcileFriendsAfterVerify().catch((e) => console.error('friend reconcile:', e));
     } catch (e) {
       cloudVerifyErrorEl.textContent = 'Verification failed. Try again.';
       cloudVerifyErrorEl.classList.remove('hidden');
       cloudVerifyGoBtn.disabled = false;
       cloudVerifyGoBtn.textContent = 'Retry';
+    }
+  });
+
+  apiKeyCopyBtn?.addEventListener('click', async () => {
+    const key = await CloudSync.getApiKey();
+    if (!key) {
+      showToast('No key to copy. Click ↻ to regenerate.', true);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(key);
+      const original = apiKeyCopyBtn.getAttribute('title');
+      apiKeyCopyBtn.setAttribute('title', 'Copied');
+      setTimeout(() => apiKeyCopyBtn.setAttribute('title', original || 'Copy API key'), 1500);
+    } catch (e) {
+      showToast('Clipboard copy blocked by browser', true);
+    }
+  });
+
+  deleteMyDataBtn?.addEventListener('click', async () => {
+    const ok = await customConfirm(
+      'Wipes your solved-slug row, friend list, and API key on the server. ' +
+      'Crowdsourced contributions about you are removed too. ' +
+      'Other users who follow you keep your handle in their list (it\'s public anyway). ' +
+      'Cloud Sync will be turned off locally. Cannot be undone.',
+      { title: 'Delete all your cloud data?', confirmLabel: 'Delete', danger: true }
+    );
+    if (!ok) return;
+    deleteMyDataBtn.disabled = true;
+    try {
+      const resp = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({ action: 'deleteMyData' }, (r) =>
+          resolve(r || { ok: false, error: 'no_response' })
+        );
+      });
+      if (!resp.ok) {
+        if (resp.error === 'jwt_expired' || resp.error === 'jwt_invalid' || resp.error === 'jwt_missing') {
+          showToast('Cannot reach your account. Re-verify Cloud Sync and try again.', true);
+        } else {
+          showToast(`Could not delete data (${resp.error || 'unknown'}).`, true);
+        }
+        return;
+      }
+      await CloudSync.disconnect();
+      if (settingCloudSync) settingCloudSync.checked = false;
+      await renderCloudSyncStatus();
+      await updateCloudSyncNavStatus();
+      await renderVerifyBanner();
+      showToast('Your data was deleted.');
+    } finally {
+      deleteMyDataBtn.disabled = false;
+    }
+  });
+
+  apiKeyRotateBtn?.addEventListener('click', async () => {
+    const ok = await customConfirm(
+      'A new key will be issued and the old one will stop working immediately.',
+      { title: 'Regenerate API key?', confirmLabel: 'Regenerate' }
+    );
+    if (!ok) return;
+    apiKeyRotateBtn.classList.add('rotating');
+    apiKeyRotateBtn.disabled = true;
+    try {
+      const resp = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({ action: 'rotateApiKey' }, (r) =>
+          resolve(r || { ok: false, error: 'no_response' })
+        );
+      });
+      if (!resp.ok) {
+        if (resp.error === 'jwt_expired' || resp.error === 'jwt_invalid') {
+          showToast('Re-verify Cloud Sync to issue a new key.', true);
+        } else {
+          showToast(`Could not rotate key (${resp.error || 'unknown'}).`, true);
+        }
+        return;
+      }
+      await CloudSync.setApiKey(resp.api_key);
+      await renderApiKeyRow(true);
+      showToast('New API key issued. Old key revoked.');
+    } finally {
+      apiKeyRotateBtn.classList.remove('rotating');
+      apiKeyRotateBtn.disabled = false;
     }
   });
 
@@ -1135,8 +1394,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `Your leetcode.com tab is signed in as @${otherUser || '?'}, not @${pendingCloudUsername}. Switch accounts and try again.`;
       case 'no_csrf':
         return 'Could not read your LeetCode session. Reload leetcode.com and try again.';
+      case 'nonce_not_found_in_skills':
       case 'nonce_not_found_in_bio':
-        return 'The verification string did not reach your public profile. LeetCode may have caches lagging; wait a moment and click Retry.';
+        return 'The verification tag did not reach your public profile yet. LeetCode caches may be lagging; wait a moment and click Retry.';
       case 'update_failed':
         return 'LeetCode rejected the bio update. Try the manual paste path below.';
       case 'leetcode_unreachable':
@@ -1147,26 +1407,119 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // If the user is signed in to leetcode.com, collapse the "Sign in
-  // (optional)" explanation card down to a one-line "Signed in as @user"
-  // confirmation. We check getCurrentUser silently so we don't toast.
+  // ===== Friend-list reconcile (after verify) =====
+
+  const friendsMergeModal = document.getElementById('friends-merge-modal');
+  const friendsMergeLocalCountEl = document.getElementById('friends-merge-local-count');
+  const friendsMergeServerCountEl = document.getElementById('friends-merge-server-count');
+  const friendsMergeUnionBtn = document.getElementById('friends-merge-union');
+  const friendsMergeServerBtn = document.getElementById('friends-merge-use-server');
+  const friendsMergeLocalBtn = document.getElementById('friends-merge-use-local');
+
+  function arraysSetEqual(a, b) {
+    if (a.length !== b.length) return false;
+    const s = new Set(a);
+    for (const x of b) if (!s.has(x)) return false;
+    return true;
+  }
+
+  async function applyMergedFriendList(merged) {
+    await StorageManager.set(StorageManager.KEYS.FRIENDS, merged);
+    try { chrome.runtime?.sendMessage?.({ action: 'syncFriends' }); } catch (e) {}
+    loadFriends();
+    loadLeaderboard();
+  }
+
+  function showMergeModal(local, server) {
+    return new Promise((resolve) => {
+      friendsMergeLocalCountEl.textContent = String(local.length);
+      friendsMergeServerCountEl.textContent = String(server.length);
+      friendsMergeModal.classList.remove('hidden');
+
+      const cleanup = () => {
+        friendsMergeModal.classList.add('hidden');
+        friendsMergeUnionBtn.removeEventListener('click', onUnion);
+        friendsMergeServerBtn.removeEventListener('click', onServer);
+        friendsMergeLocalBtn.removeEventListener('click', onLocal);
+      };
+      const onUnion = () => { cleanup(); resolve('union'); };
+      const onServer = () => { cleanup(); resolve('server'); };
+      const onLocal = () => { cleanup(); resolve('local'); };
+
+      friendsMergeUnionBtn.addEventListener('click', onUnion);
+      friendsMergeServerBtn.addEventListener('click', onServer);
+      friendsMergeLocalBtn.addEventListener('click', onLocal);
+    });
+  }
+
+  async function reconcileFriendsAfterVerify() {
+    const localRaw = await StorageManager.getFriends();
+    const local = Array.isArray(localRaw) ? localRaw : [];
+    const server = await CloudSync.getServerFriends();
+
+    if (server === null) {
+      // Server unreachable or sync disabled; nothing to reconcile.
+      return;
+    }
+
+    // Identical sets: no action needed.
+    if (arraysSetEqual(local, server)) return;
+
+    if (local.length === 0 && server.length > 0) {
+      // Pure restore: take server's list silently.
+      await applyMergedFriendList(server);
+      showToast(`Restored ${server.length} friend(s) from cloud`);
+      return;
+    }
+
+    if (server.length === 0 && local.length > 0) {
+      // First push: send local up silently.
+      try { chrome.runtime?.sendMessage?.({ action: 'syncFriends' }); } catch (e) {}
+      return;
+    }
+
+    // Both non-empty and differ: ask the user.
+    const choice = await showMergeModal(local, server);
+    let merged;
+    if (choice === 'server') merged = server;
+    else if (choice === 'local') merged = local;
+    else merged = Array.from(new Set([...local, ...server]));
+    await applyMergedFriendList(merged);
+  }
+
+  // The login card is a collapsible <details>. Its summary label is the
+  // only thing that changes between signed-in and signed-out states, so
+  // both states share the same compact layout. We cache the last known
+  // signed-in username so the label can render correctly on popup open
+  // before the live getCurrentUser check returns.
+  const SIGNED_IN_CACHE_KEY = 'cachedSignedInUser';
+  const SIGNED_OUT_LABEL = 'Sign in (optional)';
+
+  function setLoginLabel(username) {
+    const label = document.getElementById('login-summary-label');
+    if (!label) return;
+    label.textContent = username
+      ? `Signed in as @${username}`
+      : SIGNED_OUT_LABEL;
+  }
+
   async function renderSignInState() {
-    const card = document.querySelector('.setting-item.login-info');
-    if (!card) return;
+    const cached = await StorageManager.get(SIGNED_IN_CACHE_KEY);
+    if (cached) setLoginLabel(cached);
+
     try {
       const status = await LeetCodeAPI.getCurrentUser();
       if (status?.isSignedIn && status.username) {
-        card.classList.add('signed-in');
-        const safeName = LeetSquadUtils.escapeHtml(status.username);
-        card.innerHTML = `
-          <div class="setting-info">
-            <span class="setting-label">Signed in as @${safeName}</span>
-            <span class="setting-desc">Runtime percentile badges are unlocked.</span>
-          </div>
-        `;
+        if (status.username !== cached) {
+          setLoginLabel(status.username);
+          await StorageManager.set(SIGNED_IN_CACHE_KEY, status.username);
+        }
+      } else if (cached) {
+        setLoginLabel(null);
+        await StorageManager.set(SIGNED_IN_CACHE_KEY, null);
       }
     } catch (e) {
-      // leave the default expanded card in place
+      // network/API failure: leave whatever we rendered (cached or default)
     }
   }
 
@@ -1258,16 +1611,93 @@ document.addEventListener('DOMContentLoaded', async () => {
     goalStreak.textContent = `🔥 ${goal.streak || 0} day streak`;
   }
 
-  // Toast notification. Styles live in popup.css (.toast / .toast-error).
-  function showToast(message, type = 'success') {
+  // Toast notification. Docks as a banner immediately above the daily-goal
+  // footer; red on error, green on success. Accepts a few error sentinels so
+  // a stray `true` from a call site doesn't silently render as a success.
+  function customConfirm(body, opts = {}) {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('confirm-modal');
+      const titleEl = document.getElementById('confirm-title');
+      const bodyEl = document.getElementById('confirm-body');
+      const okBtn = document.getElementById('confirm-ok');
+      const cancelBtn = document.getElementById('confirm-cancel');
+      if (!modal || !okBtn || !cancelBtn) return resolve(window.confirm(body));
+
+      titleEl.textContent = opts.title || 'Are you sure?';
+      bodyEl.textContent = body;
+      okBtn.textContent = opts.confirmLabel || 'Confirm';
+      cancelBtn.textContent = opts.cancelLabel || 'Cancel';
+      if (opts.danger) okBtn.classList.add('btn-danger');
+      else okBtn.classList.remove('btn-danger');
+
+      const cleanup = (val) => {
+        modal.classList.add('hidden');
+        okBtn.removeEventListener('click', onOk);
+        cancelBtn.removeEventListener('click', onCancel);
+        resolve(val);
+      };
+      const onOk = () => cleanup(true);
+      const onCancel = () => cleanup(false);
+      okBtn.addEventListener('click', onOk);
+      cancelBtn.addEventListener('click', onCancel);
+      modal.classList.remove('hidden');
+    });
+  }
+
+  function reportIssueUrl(code, ctx = {}) {
+    const lines = [
+      `Error code: ${code}`,
+      ctx.kind ? `Where: ${ctx.kind}` : null,
+      `Username: ${ctx.username || 'unknown'}`,
+      `Extension version: ${chrome.runtime.getManifest().version}`,
+      `User agent: ${navigator.userAgent}`,
+      '',
+      'What I was trying to do:',
+    ].filter(Boolean).join('\n');
+    return (
+      'https://github.com/m-durana/leetsquad-extension/issues/new?title=' +
+      encodeURIComponent(`Sync failed: ${code}`) +
+      '&body=' +
+      encodeURIComponent(lines)
+    );
+  }
+
+  function showFailureToast(message, code, ctx) {
+    const url = reportIssueUrl(code, ctx);
+    showToast(
+      `${message} <a href="${url}" target="_blank" rel="noopener">Report this issue</a>`,
+      true,
+      { html: true, durationMs: 8000 }
+    );
+  }
+
+  async function surfaceSyncErrorIfRecent() {
+    try {
+      const data = await new Promise((res) => chrome.storage.local.get(['leetsquad_last_sync_error'], res));
+      const err = data.leetsquad_last_sync_error;
+      if (!err) return;
+      if (Date.now() - (err.at || 0) > 24 * 60 * 60 * 1000) return;
+      const dismissedKey = `leetsquad_sync_error_dismissed_${err.at}`;
+      const d = await new Promise((res) => chrome.storage.local.get([dismissedKey], res));
+      if (d[dismissedKey]) return;
+      const kindLabel = err.kind === 'upload' ? 'Cloud sync upload' : 'Friend list sync';
+      const username = await StorageManager.getMyUsername();
+      showFailureToast(`${kindLabel} failed (${err.code}).`, err.code, { kind: err.kind, username });
+      await chrome.storage.local.set({ [dismissedKey]: Date.now() });
+    } catch (e) {}
+  }
+
+  function showToast(message, type = 'success', opts = {}) {
     const existing = document.querySelector('.toast');
     if (existing) existing.remove();
 
+    const isError = type === true || type === 'error' || type === 'err';
     const toast = document.createElement('div');
-    toast.className = type === 'error' ? 'toast toast-error' : 'toast';
-    toast.textContent = message;
+    toast.className = isError ? 'toast toast-error' : 'toast';
+    if (opts.html) toast.innerHTML = message;
+    else toast.textContent = message;
     document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
+    setTimeout(() => toast.remove(), opts.durationMs || 3000);
   }
 
   // ===== MUTUALS TAB =====
@@ -1661,6 +2091,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Initialize
   await loadMyUsername();
+  renderVerifyBanner().catch(() => {});
+  updateCloudSyncNavStatus().catch(() => {});
+  surfaceSyncErrorIfRecent().catch(() => {});
 
   // First-run: if no username is set yet and the user happens to already be
   // signed in to leetcode.com, fill it in silently. This is what makes the

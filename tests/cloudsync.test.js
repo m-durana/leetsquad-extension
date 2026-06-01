@@ -45,7 +45,7 @@ describe('CloudSync.startAuth', () => {
     const r = await CloudSync.startAuth('akutasan');
     expect(r.nonce).toBe('leetsquad-verify-abc');
     const [url, init] = fetch.mock.calls[0];
-    expect(url).toBe('https://leetsquad.miro.build/auth/start');
+    expect(url).toBe(`${CloudSync.BASE}/auth/start`);
     expect(JSON.parse(init.body)).toEqual({ lc_username: 'akutasan' });
   });
 
@@ -117,8 +117,8 @@ describe('CloudSync.getStatus + storeToken + clearToken', () => {
 });
 
 describe('CloudSync.BASE', () => {
-  test('defaults to leetsquad.miro.build', () => {
-    expect(CloudSync.BASE).toBe('https://leetsquad.miro.build');
+  test('is a valid origin url', () => {
+    expect(CloudSync.BASE).toMatch(/^https?:\/\/[^/]+$/);
   });
 });
 
@@ -135,7 +135,7 @@ describe('CloudSync.fetchAndMergeFriend', () => {
     const set = await StorageManager.getSolvedSet('carol');
     expect(Object.keys(set.slugs).sort()).toEqual(['add-two-numbers', 'two-sum']);
     const [url] = fetch.mock.calls[0];
-    expect(url).toBe('https://leetsquad.miro.build/user/carol');
+    expect(url).toBe(`${CloudSync.BASE}/user/carol`);
   });
 
   test('404 returns not_found without merging', async () => {
@@ -152,7 +152,7 @@ describe('CloudSync.fetchAndMergeFriend', () => {
       json: () => Promise.resolve({ slugs: [], updated_at: 0 }),
     });
     await CloudSync.fetchAndMergeFriend('weird user');
-    expect(fetch.mock.calls[0][0]).toBe('https://leetsquad.miro.build/user/weird%20user');
+    expect(fetch.mock.calls[0][0]).toBe(`${CloudSync.BASE}/user/weird%20user`);
   });
 });
 

@@ -32,12 +32,7 @@ function cleanSlugs(slugs: string[]): string[] {
 
 type ApplyResult = 'ok' | 'count_exceeded' | 'leetcode_unreachable' | 'user_not_found';
 
-// Apply a single contribution (target=who is being described, contributor=who
-// is doing the describing). Recomputes solved_sets[target] as the union
-// across all contributors after the write. The public-count guard is checked
-// against that final union, not the individual contribution, so collusion
-// across N contributors cannot inflate a target past their public solved
-// count plus grace.
+// Public-count guard fires against the recomputed union, not the contribution, so collusion can't inflate a target.
 async function applyContribution(
   target: string,
   contributor: string,
@@ -46,7 +41,6 @@ async function applyContribution(
 ): Promise<{ accepted: number; result: ApplyResult; contributorsCount?: number }> {
   const cleaned = cleanSlugs(incoming);
 
-  // Compute what this contributor's row would become.
   const prev = stmts.getContribution.get(target, contributor) as { slugs_json: string } | undefined;
   const contribSlugs = new Set<string>();
   if (prev?.slugs_json) {
@@ -57,21 +51,19 @@ async function applyContribution(
   }
   for (const s of cleaned) contribSlugs.add(s);
 
-  // Compute the proposed union across all contributors for this target.
   const otherRows = stmts.getContributionsForTarget.all(target) as Array<{
     contributor_username: string;
     slugs_json: string;
   }>;
   const proposedUnion = new Set<string>(contribSlugs);
   for (const row of otherRows) {
-    if (row.contributor_username === contributor) continue; // we're replacing this row
+    if (row.contributor_username === contributor) continue;
     try {
       const arr: string[] = JSON.parse(row.slugs_json);
       for (const s of arr) proposedUnion.add(s);
     } catch {}
   }
 
-  // Public-count guard fires against the union, not the contribution.
   let publicCount: number | null;
   try {
     publicCount = await getCachedPublicSolvedCount(target);
@@ -83,7 +75,6 @@ async function applyContribution(
     return { accepted: 0, result: 'count_exceeded' };
   }
 
-  // Persist contributor row + recomputed solved_sets row atomically.
   const contribArr = Array.from(contribSlugs);
   const unionArr = Array.from(proposedUnion);
 

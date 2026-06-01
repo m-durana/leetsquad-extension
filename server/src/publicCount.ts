@@ -3,8 +3,7 @@ import { getPublicSolvedCount } from './leetcode';
 
 const TTL_MS = 24 * 60 * 60 * 1000;
 
-// Cached + collapsing fetch: callers within the same upload that ask for the
-// same username share one in-flight LeetCode call.
+// Collapse concurrent fetches for the same username into one in-flight LeetCode call.
 const inflight = new Map<string, Promise<number | null>>();
 
 export async function getCachedPublicSolvedCount(username: string): Promise<number | null> {

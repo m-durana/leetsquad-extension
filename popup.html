@@ -32,6 +32,13 @@
       </div>
     </header>
 
+    <!-- Verify-now banner (shown only when Cloud Sync is on but not yet verified) -->
+    <div id="verify-banner" class="verify-banner hidden">
+      <span class="verify-banner-text">Cloud Sync on but not verified. Friends won't see your historical solves.</span>
+      <button id="verify-banner-btn" class="verify-banner-action" type="button">Verify</button>
+      <button id="verify-banner-dismiss" class="verify-banner-close" type="button" aria-label="Dismiss">×</button>
+    </div>
+
     <!-- Tab Navigation -->
     <nav class="tabs">
       <button class="tab active" data-tab="leaderboard">
@@ -159,8 +166,8 @@
         <div class="settings-content">
           <div class="setting-item">
             <div class="setting-info">
-              <span class="setting-label">Your LeetCode Username</span>
-              <span class="setting-desc">Highlights you in the leaderboard. Auto-detected if you're signed in.</span>
+              <span class="setting-label">LeetCode Handle</span>
+              <span class="setting-desc">Highlights you on the leaderboard. Auto-detected when signed in.</span>
             </div>
             <div class="setting-username">
               <input type="text" id="my-username" placeholder="Username" class="input-small input-wide" aria-label="Your LeetCode username">
@@ -179,8 +186,13 @@
           </div>
 
           <div class="setting-item login-info">
-            <div class="setting-info">
-              <span class="setting-label">Sign in (optional)</span>
+            <details class="login-details">
+              <summary class="login-summary">
+                <span class="setting-label" id="login-summary-label">Sign in (optional)</span>
+                <svg class="login-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </summary>
               <span class="setting-desc">
                 LeetSquad works without signing in. You'll get the leaderboard, activity feed, and the
                 "who solved this" widget on problem pages. Signing in at
@@ -188,7 +200,7 @@
                 additionally unlocks the <strong>"Beats X%"</strong> runtime percentile badges on solved problems and lets us
                 auto-detect your username with one click.
               </span>
-            </div>
+            </details>
           </div>
 
           <div class="setting-item">
@@ -215,37 +227,30 @@
 
           <div class="setting-item">
             <div class="setting-info">
-              <span class="setting-label">Debug Mode</span>
-              <span class="setting-desc">Enable console logging for troubleshooting</span>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="setting-debug-mode">
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-
-          <div class="setting-item">
-            <div class="setting-info">
               <span class="setting-label">Daily Goal</span>
               <span class="setting-desc">Problems to solve per day</span>
             </div>
             <input type="number" id="setting-daily-goal" class="input-small" min="1" max="50" value="3" aria-label="Daily problem goal">
           </div>
 
-          <div class="setting-item cloud-sync-section" id="cloud-sync-card">
+          <button id="open-cloud-sync-panel" class="setting-item setting-item-nav" type="button">
             <div class="setting-info">
-              <span class="setting-label">Cloud Sync</span>
-              <span class="setting-desc" id="cloud-sync-desc">
-                Publishes your verified solved-problem list to
-                leetsquad.miro.build so friends see your historical solves
-                instantly. Only your LeetCode username and solved-problem
-                slugs are shared. Toggle off any time to stop syncing; to
-                also remove your data from the server, open a GitHub issue.
-              </span>
-              <div id="cloud-sync-status" class="cloud-sync-status hidden"></div>
+              <span class="setting-label">Cloud Sync settings</span>
+              <span class="setting-desc">Verify, API key, delete my data.</span>
+              <span id="cloud-sync-nav-status" class="cloud-sync-nav-status"></span>
+            </div>
+            <svg class="nav-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">Debug Mode</span>
+              <span class="setting-desc">Enable console logging for troubleshooting</span>
             </div>
             <label class="toggle">
-              <input type="checkbox" id="setting-cloud-sync">
+              <input type="checkbox" id="setting-debug-mode">
               <span class="toggle-slider"></span>
             </label>
           </div>
@@ -306,6 +311,60 @@
           </div>
         </div>
       </section>
+
+      <!-- Cloud Sync Panel (hidden by default) -->
+      <section id="cloud-sync-panel" class="settings-panel hidden">
+        <div class="settings-header">
+          <button id="cloud-sync-back-btn" class="icon-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="19" y1="12" x2="5" y2="12"/>
+              <polyline points="12 19 5 12 12 5"/>
+            </svg>
+          </button>
+          <h2>Cloud Sync</h2>
+        </div>
+
+        <div class="settings-content">
+          <div class="setting-item cloud-sync-section" id="cloud-sync-card">
+            <div class="setting-info">
+              <span class="setting-label">Cloud Sync</span>
+              <span class="setting-desc" id="cloud-sync-desc">
+                Publishes your verified solved-problem list so friends see
+                your historical solves instantly. Only your LeetCode handle
+                and solved slugs are shared.
+                <a href="https://github.com/m-durana/leetsquad-extension/blob/main/README.md#cloud-sync" target="_blank" rel="noopener">Learn more</a>.
+              </span>
+              <div id="cloud-sync-status" class="cloud-sync-status hidden"></div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="setting-cloud-sync">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div id="cloud-sync-api-key" class="api-key-row hidden">
+            <label class="api-key-label" for="api-key-input">API key</label>
+            <div class="api-key-controls">
+              <input id="api-key-input" type="text" readonly class="api-key-input" value="" aria-label="LeetSquad API key" />
+              <button id="api-key-copy" class="icon-btn api-key-btn" type="button" title="Copy API key" aria-label="Copy API key">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+              </button>
+              <button id="api-key-rotate" class="icon-btn api-key-btn" type="button" title="Regenerate API key" aria-label="Regenerate API key">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="23 4 23 10 17 10"/>
+                  <polyline points="1 20 1 14 7 14"/>
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                </svg>
+              </button>
+            </div>
+            <span class="api-key-hint">Reads at <code>/api/v1/*</code> at higher rate limits. See <a href="https://github.com/m-durana/leetsquad-extension/blob/main/API.md" target="_blank" rel="noopener">API.md</a>.</span>
+            <button id="cloud-sync-delete-data" class="btn btn-danger btn-small" type="button">Delete my data</button>
+          </div>
+        </div>
+      </section>
     </main>
 
     <!-- Daily Goal Banner -->
@@ -325,9 +384,9 @@
       <div class="modal-panel">
         <h2 id="cloud-verify-title">Verify your LeetCode account</h2>
         <p class="modal-body">
-          LeetSquad will briefly add a verification string to your LeetCode
-          bio, read it back from your public profile, then remove it. Your
-          existing bio is preserved.
+          LeetSquad will briefly add a one-off skill tag to your LeetCode
+          profile, read it back from your public profile, then remove it.
+          Your existing skill tags and the rest of your profile are kept.
         </p>
         <div class="modal-nonce">
           <code id="cloud-verify-nonce">leetsquad-verify-...</code>
@@ -339,9 +398,43 @@
           <button id="cloud-verify-go" class="btn btn-primary">Auto-verify</button>
         </div>
         <p class="modal-footnote">
-          Prefer to paste it yourself? Open <a href="https://leetcode.com/profile/" target="_blank" rel="noopener">leetcode.com/profile</a>,
-          paste the code into your bio, save, then come back and click Auto-verify.
+          Prefer manual? Open <a href="https://leetcode.com/profile/" target="_blank" rel="noopener">leetcode.com/profile</a>,
+          add the code above as a Skill tag, save, then click Auto-verify. You can remove the tag right after.
         </p>
+      </div>
+    </div>
+
+    <!-- Friend-list merge modal: shown after verify when local and server lists differ -->
+    <div id="friends-merge-modal" class="modal hidden" role="dialog" aria-labelledby="friends-merge-title" aria-modal="true">
+      <div class="modal-backdrop"></div>
+      <div class="modal-panel">
+        <h2 id="friends-merge-title">Restore your friend list?</h2>
+        <p class="modal-body">
+          You have <strong id="friends-merge-local-count">0</strong> friend(s) on this device
+          and <strong id="friends-merge-server-count">0</strong> stored in your LeetSquad
+          account. Choose how to combine them.
+        </p>
+        <div class="modal-actions modal-actions-stack">
+          <button id="friends-merge-union" class="btn btn-primary">Keep both lists (recommended)</button>
+          <button id="friends-merge-use-server" class="btn btn-secondary">Use cloud list only</button>
+          <button id="friends-merge-use-local" class="btn btn-secondary">Use this device only</button>
+        </div>
+        <p class="modal-footnote">
+          You can always edit your friend list later from the Friends panel.
+        </p>
+      </div>
+    </div>
+
+    <!-- Generic confirm dialog (replaces native window.confirm) -->
+    <div id="confirm-modal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-backdrop"></div>
+      <div class="modal-panel confirm-panel">
+        <h2 id="confirm-title" class="confirm-title">Are you sure?</h2>
+        <p id="confirm-body" class="confirm-body"></p>
+        <div class="modal-actions">
+          <button id="confirm-cancel" class="btn btn-secondary" type="button">Cancel</button>
+          <button id="confirm-ok" class="btn btn-primary" type="button">Confirm</button>
+        </div>
       </div>
     </div>
   </div>

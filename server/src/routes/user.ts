@@ -38,9 +38,7 @@ userRouter.delete('/:username', requireAuth, (req: AuthedRequest, res: Response)
   if (req.auth!.lc_username.toLowerCase() !== username.toLowerCase()) {
     return res.status(403).json({ error: 'not_owner' });
   }
-  // Find every target this user has contributed to (other than themselves);
-  // after we strip their contributions, those targets' derived solved_sets
-  // need to be recomputed (or removed if they had no other contributors).
+  // Targets this user contributed to need their solved_sets recomputed after stripping our rows.
   const affectedTargets = (db
     .prepare(
       'SELECT DISTINCT target_username FROM contributions ' +

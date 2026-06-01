@@ -1,7 +1,4 @@
-// Cloud sync client (Phase B1: verify only).
-// Talks to the LeetSquad server to prove ownership of a LeetCode account by
-// briefly writing a server-issued nonce into the user's profile bio, then
-// reading it back from the public profile via the server.
+// Cloud sync client: bio-nonce verify, JWT/api-key storage, friends sync.
 
 const CloudSync = {
   get BASE() {
@@ -55,16 +52,36 @@ const CloudSync = {
     };
   },
 
-  async storeToken({ token, expires_at, username }) {
+  async storeToken({ token, expires_at, username, api_key }) {
     await StorageManager.set(StorageManager.KEYS.CLOUD_SYNC_TOKEN, token);
     await StorageManager.set(StorageManager.KEYS.CLOUD_SYNC_TOKEN_EXP, expires_at);
     await StorageManager.set(StorageManager.KEYS.CLOUD_SYNC_USERNAME, username);
+    if (api_key) {
+      await StorageManager.set(StorageManager.KEYS.CLOUD_SYNC_API_KEY, api_key);
+    }
   },
 
   async clearToken() {
     await StorageManager.remove(StorageManager.KEYS.CLOUD_SYNC_TOKEN);
     await StorageManager.remove(StorageManager.KEYS.CLOUD_SYNC_TOKEN_EXP);
     await StorageManager.remove(StorageManager.KEYS.CLOUD_SYNC_USERNAME);
+  },
+
+  async getApiKey() {
+    if (typeof StorageManager === 'undefined') return null;
+    return await StorageManager.get(StorageManager.KEYS.CLOUD_SYNC_API_KEY);
+  },
+
+  async setApiKey(key) {
+    if (!key) {
+      await StorageManager.remove(StorageManager.KEYS.CLOUD_SYNC_API_KEY);
+    } else {
+      await StorageManager.set(StorageManager.KEYS.CLOUD_SYNC_API_KEY, key);
+    }
+  },
+
+  async clearApiKey() {
+    await StorageManager.remove(StorageManager.KEYS.CLOUD_SYNC_API_KEY);
   },
 
   async setEnabled(on) {
@@ -88,10 +105,55 @@ const CloudSync = {
     }
   },
 
+  // === Friend list sync (internal, JWT-auth, gated by cloud sync enabled) ===
+
+  async _jwtIfEnabled() {
+    const status = await this.getStatus();
+    if (!status.enabled || !status.verified) return null;
+    return await StorageManager.get(StorageManager.KEYS.CLOUD_SYNC_TOKEN);
+  },
+
+  // Returns the server's stored friend list, or null if cloud sync is off /
+  // unverified / a fetch error happens. Never throws.
+  async getServerFriends() {
+    const token = await this._jwtIfEnabled();
+    if (!token) return null;
+    try {
+      const r = await fetch(`${this.BASE}/friends`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!r.ok) return null;
+      const body = await r.json();
+      return Array.isArray(body.friends) ? body.friends : null;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  // Replaces the server's friend list with the given array. Returns the
+  // canonical list the server kept (deduped, validated), or null on failure.
+  async putServerFriends(friends) {
+    const token = await this._jwtIfEnabled();
+    if (!token) return null;
+    try {
+      const r = await fetch(`${this.BASE}/friends`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ friends }),
+      });
+      if (!r.ok) return null;
+      const body = await r.json();
+      return Array.isArray(body.friends) ? body.friends : null;
+    } catch (e) {
+      return null;
+    }
+  },
+
   // Disconnect locally: stop syncing. Server data is retained by design;
   // users request data deletion via a GitHub issue.
   async disconnect() {
     await this.clearToken();
+    await this.clearApiKey();
     await this.setEnabled(false);
     await StorageManager.remove(StorageManager.KEYS.CLOUD_SYNC_LAST_AT);
   },

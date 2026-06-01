@@ -1,6 +1,6 @@
 # leetsquad-server
 
-Cloud sync backend for the LeetSquad Chrome extension.
+Cloud sync backend + public read-only API for the LeetSquad extension. The full public surface is documented in [../API.md](../API.md); machine-readable OpenAPI 3.1 is served at `/api/v1/openapi.json`.
 
 ## Requirements
 
@@ -116,14 +116,19 @@ The volume persists across rebuilds.
 
 ## Data deletion requests
 
+Verified users self-serve via `DELETE /api/v1/users/me` (JWT-authed), exposed in the extension Settings as "Delete my data". The manual SQL path below is only for users who have lost their JWT (extension uninstalled, browser wiped) and have filed a GitHub issue with proof of ownership.
+
 ```bash
 docker exec -it leetsquad-server sh -c '
 sqlite3 /data/leetsquad.db "
   DELETE FROM contributions WHERE target_username = '\''USER'\'' OR contributor_username = '\''USER'\'';
   DELETE FROM solved_sets WHERE lc_username = '\''USER'\'';
+  DELETE FROM user_friends WHERE lc_username = '\''USER'\'' OR friend_username = '\''USER'\'';
+  DELETE FROM api_keys WHERE lc_username = '\''USER'\'';
+  DELETE FROM public_solved_counts WHERE lc_username = '\''USER'\'';
   DELETE FROM users WHERE lc_username = '\''USER'\'';
 "
 '
 ```
 
-(Replace `USER` with the requested handle.) The DELETE endpoint exists for the verified owner, but a manual SQL path covers cases where the user has already lost their JWT.
+(Replace `USER` with the requested handle.)

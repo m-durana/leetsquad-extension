@@ -3,7 +3,7 @@ import request from 'supertest';
 import { unlinkSync, existsSync } from 'node:fs';
 
 vi.mock('../src/leetcode', () => ({
-  getPublicAboutMe: vi.fn(),
+  getPublicSkillTags: vi.fn(),
   getPublicSolvedCount: vi.fn(),
 }));
 

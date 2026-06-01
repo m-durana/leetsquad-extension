@@ -1,9 +1,4 @@
-// LeetSquad - Shared utilities used by content.js and popup.js
-
-// Single source of truth for cache lifetimes. Previously api.js, storage.js,
-// and popup.js each had their own (5min / 30min / 10min) and disagreed,
-// causing storage hits to be invalidated by the popup's stricter check and
-// forcing unnecessary refetches.
+// Shared utilities used by content.js and popup.js; single TTL source so caches don't disagree.
 const LEETSQUAD_CACHE_TTL_MS = 10 * 60 * 1000;
 
 const LEETSQUAD_CLOUD_BASE = 'https://leetsquad.miro.build';
@@ -12,10 +7,7 @@ const LeetSquadUtils = {
   CACHE_TTL_MS: LEETSQUAD_CACHE_TTL_MS,
   CLOUD_BASE: LEETSQUAD_CLOUD_BASE,
 
-  // Arms a delayed "slow loading" hint that swaps into the given element if
-  // loading hasn't completed by `delayMs`. Common cause is LeetCode rate
-  // limiting on a fresh cache. Returns a cancel() function to call when the
-  // real data renders so the hint never appears for fast loads.
+  // Shows a "slow loading" hint after delayMs (usually LeetCode rate-limiting on a fresh cache); returns cancel().
   armSlowHint(container, delayMs) {
     if (!container) return () => {};
     const ms = typeof delayMs === 'number' ? delayMs : 2500;

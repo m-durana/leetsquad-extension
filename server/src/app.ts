@@ -4,6 +4,8 @@ import { authRouter } from './routes/auth';
 import { healthRouter } from './routes/health';
 import { syncRouter } from './routes/sync';
 import { userRouter } from './routes/user';
+import { friendsRouter } from './routes/friends';
+import { createV1Router } from './routes/v1';
 import { config } from './config';
 
 export function createApp() {
@@ -34,6 +36,8 @@ export function createApp() {
   app.use('/auth', authRouter);
   app.use('/sync', syncRouter);
   app.use('/user', userRouter);
+  app.use('/friends', friendsRouter);
+  app.use('/api/v1', createV1Router());
 
   app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     if (err.message === 'cors_blocked') return res.status(403).json({ error: 'cors_blocked' });

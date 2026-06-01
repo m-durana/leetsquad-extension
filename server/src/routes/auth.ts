@@ -3,8 +3,9 @@ import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { stmts, sweepExpiredNonces } from '../db';
 import { generateNonce, isValidUsername } from '../nonce';
-import { getPublicAboutMe } from '../leetcode';
+import { getPublicSkillTags } from '../leetcode';
 import { signToken } from '../jwt';
+import { issueKeyForUser } from '../apiKeys';
 import { config } from '../config';
 
 export const authRouter = Router();
@@ -50,20 +51,29 @@ authRouter.post('/verify', verifyLimiter, async (req: Request, res: Response) =>
     | undefined;
   if (!row) return res.status(403).json({ error: 'no_active_nonce' });
 
-  let aboutMe: string | null;
+  let skillTags: string[] | null;
   try {
-    aboutMe = await getPublicAboutMe(username);
+    skillTags = await getPublicSkillTags(username);
   } catch (e) {
     return res.status(502).json({ error: 'leetcode_unreachable' });
   }
-  if (aboutMe === null) return res.status(404).json({ error: 'user_not_found' });
-  if (!aboutMe.includes(row.nonce)) {
-    return res.status(403).json({ error: 'nonce_not_found_in_bio' });
+  if (skillTags === null) return res.status(404).json({ error: 'user_not_found' });
+  if (!skillTags.includes(row.nonce)) {
+    return res.status(403).json({ error: 'nonce_not_found_in_skills' });
   }
 
   stmts.upsertUser.run(username, Date.now());
   stmts.deleteNoncesForUser.run(username);
 
+  // If a live key already exists, plaintext is null (we only stored its hash); rotate to recover.
+  const key = issueKeyForUser(username);
+
   const { token, expiresAt } = signToken({ lc_username: username });
-  res.json({ token, expires_at: expiresAt });
+  res.json({
+    token,
+    expires_at: expiresAt,
+    api_key: key.plaintext,
+    api_key_prefix: key.prefix,
+    api_key_tier: key.tier,
+  });
 });

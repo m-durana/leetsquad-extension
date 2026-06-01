@@ -11,15 +11,13 @@ const BG_RETRY_CONFIG = {
 };
 
 // Initialize alarms on install
-chrome.runtime.onInstalled.addListener(async () => {
+chrome.runtime.onInstalled.addListener(async (details) => {
   chrome.alarms.create('checkUpdates', { periodInMinutes: 30 });
   chrome.alarms.create('dailyReset', {
     when: getNextMidnight(),
     periodInMinutes: 24 * 60
   });
 
-  // Seed the solved-slug set immediately so first-run users see data
-  // without waiting for the 30-minute alarm cycle.
   try {
     const data = await chrome.storage.local.get(['leetsquad_friends']);
     const friends = data.leetsquad_friends || [];
@@ -27,6 +25,13 @@ chrome.runtime.onInstalled.addListener(async () => {
       refreshSolvedSets(friends).catch(e => console.error('initial refresh:', e));
     }
   } catch (e) {}
+
+  if (typeof recoverPendingVerification === 'function') {
+    recoverPendingVerification().catch((e) => console.error('recovery onInstalled:', e?.message || e));
+  }
+  if (details?.reason === 'install') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') }).catch(() => {});
+  }
 
   console.log('LeetSquad installed and alarms set');
 });
@@ -49,11 +54,7 @@ function getNextMidnight() {
   return midnight.getTime();
 }
 
-// Resilient GraphQL fetch with retry and timeout.
-// NOTE: This intentionally does NOT send an x-csrftoken header. The background
-// service worker only issues public read-only queries (recentSubmissionList,
-// matchedUser); LeetCode does not require CSRF for these. If you ever add an
-// auth-gated query here, fetch the token via chrome.cookies.get and include it.
+// Resilient GraphQL fetch; no x-csrftoken since this worker only issues public read-only queries.
 async function graphqlFetch(query, variables = {}) {
   for (let attempt = 0; attempt <= BG_RETRY_CONFIG.maxRetries; attempt++) {
     try {
@@ -99,10 +100,7 @@ async function graphqlFetch(query, variables = {}) {
   return null;
 }
 
-// Pull each friend's most recent accepted submissions and union into their
-// cumulative solved-slug set. Over time this converges toward each active
-// friend's full solved list, working around LeetCode's API capping
-// recentAcSubmissionList at ~20 entries per query.
+// Union friends' recent ACs into a cumulative solved-slug set; converges past LeetCode's ~20-entry cap.
 async function refreshSolvedSets(friends) {
   if (!friends || friends.length === 0) return;
   const query = `
@@ -291,6 +289,7 @@ async function checkForNewSubmissions() {
     refreshSolvedSets(friends)
       .then(() => uploadMySolvedSetIfOptedIn())
       .catch(e => console.error('refreshSolvedSets:', e));
+    syncFriendsIfOptedIn().catch(e => console.error('syncFriends:', e));
 
     if (!settings.notifications || friends.length === 0) return;
 
@@ -345,43 +344,82 @@ async function checkForNewSubmissions() {
   }
 }
 
-// ===== Cloud sync: bio verification flow =====
-// Runs in a leetcode.com tab so it has session cookies + CSRF. Reads current
-// aboutMe, writes (aboutMe + nonce), calls back, restores aboutMe. The
-// background orchestrates; the in-page function below is intentionally dumb.
-
-function _lcBioFn(op, value) {
+// Runs inside the leetcode.com page (Origin matches), so mutations are accepted.
+function _lcSkillsFn(op, value) {
   return (async () => {
-    const csrftoken = (document.cookie.split('; ').find(c => c.startsWith('csrftoken=')) || '').split('=')[1];
+    const csrftoken = (document.cookie.split('; ').find((c) => c.startsWith('csrftoken=')) || '').split('=')[1];
     if (!csrftoken) return { error: 'no_csrf' };
-    const post = (query, variables) => fetch('https://leetcode.com/graphql/', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json', 'x-csrftoken': csrftoken },
-      body: JSON.stringify({ query, variables }),
-    }).then(r => r.json());
+    const post = (query, variables, opName) =>
+      fetch('https://leetcode.com/graphql/', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-csrftoken': csrftoken,
+          'x-operation-name': opName,
+        },
+        body: JSON.stringify({ query, variables, operationName: opName }),
+      }).then(async (r) => {
+        const text = await r.text();
+        try { return JSON.parse(text); }
+        catch (_) { return { _httpStatus: r.status, _nonJson: text.slice(0, 200) }; }
+      });
 
     if (op === 'read') {
-      const me = await post('query { userStatus { isSignedIn username } }', {});
+      const me = await post('query userStatus { userStatus { isSignedIn username } }', {}, 'userStatus');
       const username = me?.data?.userStatus?.username;
       if (!me?.data?.userStatus?.isSignedIn || !username) return { error: 'not_signed_in' };
       const cur = await post(
-        'query userPublicProfile($username: String!) { matchedUser(username: $username) { profile { aboutMe } } }',
-        { username }
+        'query userPublicProfile($username: String!) { matchedUser(username: $username) { profile { skillTags } } }',
+        { username }, 'userPublicProfile'
       );
-      return { username, aboutMe: cur?.data?.matchedUser?.profile?.aboutMe || '' };
+      const tags = cur?.data?.matchedUser?.profile?.skillTags;
+      return { username, skillTags: Array.isArray(tags) ? tags : [] };
     }
     if (op === 'write') {
+      const arr = Array.isArray(value) ? value : [];
       const upd = await post(
         'mutation updateProfile($fieldName: String!, $value: String) { updateProfile(fieldName: $fieldName, value: $value) { ok error } }',
-        { fieldName: 'about_me', value: value || '' }
+        { fieldName: 'skills', value: JSON.stringify(arr) }, 'updateProfile'
       );
+      if (upd?._nonJson !== undefined) return { error: `lc_write_non_json_${upd._httpStatus}` };
       const r = upd?.data?.updateProfile;
       if (!r?.ok) return { error: r?.error || 'update_failed' };
       return { ok: true };
     }
     return { error: 'unknown_op' };
   })();
+}
+
+async function findOrOpenLeetCodeTab() {
+  const existing = await chrome.tabs.query({ url: 'https://leetcode.com/*' });
+  if (existing.length > 0) return { tabId: existing[0].id, opened: false };
+  const tab = await chrome.tabs.create({ url: 'https://leetcode.com/', active: false, pinned: true });
+  await new Promise((resolve) => {
+    const listener = (updatedTabId, info) => {
+      if (updatedTabId === tab.id && info.status === 'complete') {
+        chrome.tabs.onUpdated.removeListener(listener);
+        resolve();
+      }
+    };
+    chrome.tabs.onUpdated.addListener(listener);
+    setTimeout(() => { chrome.tabs.onUpdated.removeListener(listener); resolve(); }, 15000);
+  });
+  return { tabId: tab.id, opened: true };
+}
+
+async function lcSkillsOp(op, value, tabId) {
+  if (!tabId) {
+    const t = await findOrOpenLeetCodeTab();
+    tabId = t.tabId;
+  }
+  const [{ result } = {}] = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: _lcSkillsFn,
+    args: [op, value ?? null],
+    world: 'MAIN',
+  });
+  return result || { error: 'no_result' };
 }
 
 // Upload my full solved-slug set if I'm opted in and have a live token.
@@ -406,10 +444,7 @@ async function uploadMySolvedSetIfOptedIn() {
     const selfSet = allSets[username] || { slugs: {} };
     const slugs = Object.keys(selfSet.slugs || {});
 
-    // Also push everything we've accreted locally about our friends. Each
-    // LeetSquad user is a sensor: they see ~20 most recent ACs per friend
-    // per alarm cycle, so over time their `solved_sets[friend]` grows beyond
-    // the API window. The server unions contributions from many sensors,
+    // Push accreted friend observations; server unions contributions from many sensors,
     // and every entry is bounded by the target's public `userProblemsSolved`
     // count so a bad-faith sensor can't inflate a target's record.
     const friendList = (data.leetsquad_friends || []).filter(
@@ -440,62 +475,188 @@ async function uploadMySolvedSetIfOptedIn() {
         'leetsquad_cloud_sync_token',
         'leetsquad_cloud_sync_token_exp',
       ]);
-      return;
+      await recordSyncError('upload', 'jwt_invalid');
+      return { ok: false, error: 'jwt_invalid' };
     }
     if (r.ok) {
       await chrome.storage.local.set({ leetsquad_cloud_sync_last_at: Date.now() });
+      await clearSyncError();
+      return { ok: true };
     }
+    let errBody = {};
+    try { errBody = await r.json(); } catch (_) {}
+    const code = errBody.error || `http_${r.status}`;
+    await recordSyncError('upload', code);
+    return { ok: false, error: code };
   } catch (e) {
     console.error('uploadMySolvedSetIfOptedIn:', e?.message || e);
+    await recordSyncError('upload', 'network');
+    return { ok: false, error: 'network' };
   }
 }
 
-async function findOrOpenLeetCodeTab() {
-  const existing = await chrome.tabs.query({ url: 'https://leetcode.com/*' });
-  if (existing.length > 0) {
-    return { tabId: existing[0].id, opened: false };
+async function recordSyncError(kind, code) {
+  await chrome.storage.local.set({
+    leetsquad_last_sync_error: { kind, code, at: Date.now() },
+  });
+}
+async function clearSyncError() {
+  await chrome.storage.local.remove('leetsquad_last_sync_error');
+}
+
+async function syncFriendsIfOptedIn() {
+  try {
+    const data = await chrome.storage.local.get([
+      'leetsquad_cloud_sync_enabled',
+      'leetsquad_cloud_sync_token',
+      'leetsquad_cloud_sync_token_exp',
+      'leetsquad_friends',
+    ]);
+    const enabled = data.leetsquad_cloud_sync_enabled !== false;
+    if (!enabled || !data.leetsquad_cloud_sync_token) return { ok: true, skipped: true };
+    if (Date.now() >= (data.leetsquad_cloud_sync_token_exp || 0)) return { ok: true, skipped: true };
+    const friends = data.leetsquad_friends || [];
+
+    const r = await fetch(`${LEETSQUAD_CLOUD_BASE}/friends`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${data.leetsquad_cloud_sync_token}`,
+      },
+      body: JSON.stringify({ friends }),
+    });
+    if (!r.ok) {
+      let body = {};
+      try { body = await r.json(); } catch (_) {}
+      const code = body.error || `http_${r.status}`;
+      await recordSyncError('friends', code);
+      return { ok: false, error: code };
+    }
+    return { ok: true };
+  } catch (e) {
+    console.error('syncFriendsIfOptedIn:', e?.message || e);
+    await recordSyncError('friends', 'network');
+    return { ok: false, error: 'network' };
   }
-  const tab = await chrome.tabs.create({ url: 'https://leetcode.com/', active: false });
-  await new Promise((resolve) => {
-    const listener = (tabId, info) => {
-      if (tabId === tab.id && info.status === 'complete') {
-        chrome.tabs.onUpdated.removeListener(listener);
-        resolve();
-      }
-    };
-    chrome.tabs.onUpdated.addListener(listener);
-    setTimeout(() => {
-      chrome.tabs.onUpdated.removeListener(listener);
-      resolve();
-    }, 15000);
-  });
-  return { tabId: tab.id, opened: true };
 }
 
-async function runBioOp(tabId, op, value) {
-  const [{ result } = {}] = await chrome.scripting.executeScript({
-    target: { tabId },
-    func: _lcBioFn,
-    args: [op, value ?? null],
-    world: 'MAIN',
-  });
-  return result || { error: 'no_result' };
+// Self-serve account + data deletion. JWT-authorized.
+async function deleteMyData() {
+  const data = await chrome.storage.local.get([
+    'leetsquad_cloud_sync_token',
+    'leetsquad_cloud_sync_token_exp',
+  ]);
+  const token = data.leetsquad_cloud_sync_token;
+  const exp = data.leetsquad_cloud_sync_token_exp || 0;
+  if (!token) return { ok: false, error: 'jwt_missing' };
+  if (Date.now() >= exp) return { ok: false, error: 'jwt_expired' };
+
+  let resp;
+  try {
+    resp = await fetch(`${LEETSQUAD_CLOUD_BASE}/api/v1/users/me`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+  } catch (e) {
+    return { ok: false, error: 'network' };
+  }
+  if (resp.status === 401) {
+    await chrome.storage.local.remove([
+      'leetsquad_cloud_sync_token',
+      'leetsquad_cloud_sync_token_exp',
+    ]);
+    return { ok: false, error: 'jwt_invalid' };
+  }
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    return { ok: false, error: body.error || `http_${resp.status}` };
+  }
+  return { ok: true };
 }
 
-async function verifyBioFlow({ nonce, expectedUsername }) {
+// Rotate the user's /api/v1 API key. JWT-authorized.
+async function rotateApiKey() {
+  const data = await chrome.storage.local.get([
+    'leetsquad_cloud_sync_token',
+    'leetsquad_cloud_sync_token_exp',
+  ]);
+  const token = data.leetsquad_cloud_sync_token;
+  const exp = data.leetsquad_cloud_sync_token_exp || 0;
+  if (!token) return { ok: false, error: 'jwt_missing' };
+  if (Date.now() >= exp) return { ok: false, error: 'jwt_expired' };
+
+  let resp;
+  try {
+    resp = await fetch(`${LEETSQUAD_CLOUD_BASE}/api/v1/key/rotate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: '{}',
+    });
+  } catch (e) {
+    return { ok: false, error: 'network' };
+  }
+  if (resp.status === 401) {
+    await chrome.storage.local.remove([
+      'leetsquad_cloud_sync_token',
+      'leetsquad_cloud_sync_token_exp',
+    ]);
+    return { ok: false, error: 'jwt_invalid' };
+  }
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    return { ok: false, error: body.error || `http_${resp.status}` };
+  }
+  const body = await resp.json().catch(() => ({}));
+  if (!body.api_key) return { ok: false, error: 'bad_response' };
+  await chrome.storage.local.set({ leetsquad_cloud_sync_api_key: body.api_key });
+  return { ok: true, api_key: body.api_key };
+}
+
+
+const RECOVERY_KEY = 'leetsquad_verify_recovery';
+
+async function saveRecoverySnapshot(snapshot) {
+  await chrome.storage.local.set({ [RECOVERY_KEY]: snapshot });
+}
+async function clearRecoverySnapshot() {
+  await chrome.storage.local.remove(RECOVERY_KEY);
+}
+async function readRecoverySnapshot() {
+  const d = await chrome.storage.local.get([RECOVERY_KEY]);
+  return d[RECOVERY_KEY] || null;
+}
+
+async function stripNonceAndRestore(tabId, nonce, fallbackOriginal) {
+  const recheck = await lcSkillsOp('read', null, tabId);
+  if (recheck.error) {
+    if (fallbackOriginal) await lcSkillsOp('write', fallbackOriginal, tabId);
+    return { ok: false, error: recheck.error };
+  }
+  const stripped = (recheck.skillTags || []).filter((t) => t !== nonce);
+  const wrote = await lcSkillsOp('write', stripped, tabId);
+  if (wrote.error) return { ok: false, error: wrote.error };
+  return { ok: true };
+}
+
+async function verifySkillsFlow({ nonce, expectedUsername }) {
   if (!nonce) return { ok: false, error: 'missing_nonce' };
   const { tabId, opened } = await findOrOpenLeetCodeTab();
   try {
-    const read = await runBioOp(tabId, 'read');
+    const read = await lcSkillsOp('read', null, tabId);
     if (read.error) return { ok: false, error: read.error };
     if (expectedUsername && read.username.toLowerCase() !== expectedUsername.toLowerCase()) {
       return { ok: false, error: 'wrong_signed_in_user', username: read.username };
     }
 
-    const original = read.aboutMe || '';
-    const withNonce = original ? `${original}\n\n${nonce}` : nonce;
-    const wrote = await runBioOp(tabId, 'write', withNonce);
-    if (wrote.error) return { ok: false, error: wrote.error };
+    const original = Array.isArray(read.skillTags) ? read.skillTags.slice() : [];
+    await saveRecoverySnapshot({ original, nonce, username: read.username, savedAt: Date.now() });
+
+    const withNonce = original.includes(nonce) ? original : [...original, nonce];
+    const wrote = await lcSkillsOp('write', withNonce, tabId);
+    if (wrote.error) {
+      await clearRecoverySnapshot();
+      return { ok: false, error: wrote.error };
+    }
 
     let serverResp;
     try {
@@ -506,40 +667,96 @@ async function verifyBioFlow({ nonce, expectedUsername }) {
       });
       serverResp = await r.json().catch(() => ({}));
       if (!r.ok) {
-        await runBioOp(tabId, 'write', original);
+        const restore = await stripNonceAndRestore(tabId, nonce, original);
+        if (restore.ok) await clearRecoverySnapshot();
         return { ok: false, error: serverResp.error || `server_${r.status}` };
       }
     } catch (e) {
-      await runBioOp(tabId, 'write', original);
+      const restore = await stripNonceAndRestore(tabId, nonce, original);
+      if (restore.ok) await clearRecoverySnapshot();
       return { ok: false, error: 'server_unreachable' };
     }
 
-    await runBioOp(tabId, 'write', original);
+    const restore = await stripNonceAndRestore(tabId, nonce, original);
+    if (restore.ok) await clearRecoverySnapshot();
 
-    // Trigger an initial cloud sync upload now that the token is available.
-    // Popup persists the token first; this runs on its own message.
     return {
       ok: true,
       username: read.username,
       token: serverResp.token,
       expires_at: serverResp.expires_at,
+      api_key: serverResp.api_key,
+      api_key_prefix: serverResp.api_key_prefix,
+      api_key_tier: serverResp.api_key_tier,
     };
   } finally {
-    if (opened) {
-      chrome.tabs.remove(tabId).catch(() => {});
-    }
+    if (opened) chrome.tabs.remove(tabId).catch(() => {});
   }
 }
+
+async function recoverPendingVerification() {
+  const snap = await readRecoverySnapshot();
+  if (!snap || !snap.nonce) return { ok: true, recovered: false };
+  const { tabId, opened } = await findOrOpenLeetCodeTab();
+  try {
+  const cur = await lcSkillsOp('read', null, tabId);
+  if (cur.error) return { ok: false, error: cur.error };
+  if (snap.username && cur.username.toLowerCase() !== snap.username.toLowerCase()) {
+    return { ok: false, error: 'wrong_signed_in_user', username: cur.username };
+  }
+  if (!(cur.skillTags || []).includes(snap.nonce)) {
+    await clearRecoverySnapshot();
+    return { ok: true, recovered: false };
+  }
+  const stripped = cur.skillTags.filter((t) => t !== snap.nonce);
+  const wrote = await lcSkillsOp('write', stripped, tabId);
+  if (wrote.error) return { ok: false, error: wrote.error };
+  await clearRecoverySnapshot();
+  return { ok: true, recovered: true };
+  } finally {
+    if (opened) chrome.tabs.remove(tabId).catch(() => {});
+  }
+}
+
+chrome.runtime.onStartup?.addListener(() => {
+  recoverPendingVerification().catch((e) => console.error('recovery onStartup:', e?.message || e));
+});
 
 // Listen for messages from popup/content scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'uploadMySolvedSet') {
-    uploadMySolvedSetIfOptedIn().then(() => sendResponse({ ok: true }));
+    uploadMySolvedSetIfOptedIn().then((r) => sendResponse(r || { ok: true }));
+    return true;
+  }
+
+  if (request.action === 'syncFriends') {
+    syncFriendsIfOptedIn().then((r) => sendResponse(r || { ok: true }));
+    return true;
+  }
+
+  if (request.action === 'rotateApiKey') {
+    rotateApiKey().then(sendResponse).catch((e) =>
+      sendResponse({ ok: false, error: e?.message || 'flow_failed' })
+    );
+    return true;
+  }
+
+  if (request.action === 'deleteMyData') {
+    deleteMyData().then(sendResponse).catch((e) =>
+      sendResponse({ ok: false, error: e?.message || 'flow_failed' })
+    );
     return true;
   }
 
   if (request.action === 'verifyBio') {
-    verifyBioFlow({ nonce: request.nonce, expectedUsername: request.expectedUsername })
+    verifySkillsFlow({ nonce: request.nonce, expectedUsername: request.expectedUsername })
+      .then(r => sendResponse(r))
+      .catch(e => sendResponse({ ok: false, error: e?.message || 'flow_failed' }));
+    return true;
+  }
+
+  if (request.action === 'recoverPendingVerification') {
+    recoverPendingVerification()
       .then(r => sendResponse(r))
       .catch(e => sendResponse({ ok: false, error: e?.message || 'flow_failed' }));
     return true;
