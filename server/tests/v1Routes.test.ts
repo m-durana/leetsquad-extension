@@ -311,6 +311,8 @@ describe('DELETE /api/v1/users/me', () => {
     ).run('bob', 'alice', JSON.stringify(['add-two-numbers']), Date.now());
     db.prepare('INSERT INTO user_friends (lc_username, friend_username, added_at) VALUES (?, ?, ?)').run('alice', 'bob', Date.now());
     db.prepare('INSERT INTO user_friends (lc_username, friend_username, added_at) VALUES (?, ?, ?)').run('bob', 'alice', Date.now());
+    db.prepare('INSERT INTO user_daily_goals (lc_username, goals_json, updated_at) VALUES (?, ?, ?)').run('alice', '{}', Date.now());
+    db.prepare('INSERT INTO user_daily_goals (lc_username, goals_json, updated_at) VALUES (?, ?, ?)').run('bob', '{}', Date.now());
     issueKeyForUser('alice');
 
     const r = await request(app).delete('/api/v1/users/me').set('Authorization', jwtHeader('alice'));
@@ -325,12 +327,14 @@ describe('DELETE /api/v1/users/me', () => {
     expect(db.prepare('SELECT COUNT(*) AS c FROM contributions WHERE target_username = ?').get('alice')).toMatchObject({ c: 0 });
     expect(db.prepare('SELECT COUNT(*) AS c FROM contributions WHERE contributor_username = ? AND target_username = ?').get('alice', 'bob')).toMatchObject({ c: 1 });
     expect(db.prepare('SELECT COUNT(*) AS c FROM user_friends WHERE lc_username = ?').get('alice')).toMatchObject({ c: 0 });
+    expect(db.prepare('SELECT COUNT(*) AS c FROM user_daily_goals WHERE lc_username = ?').get('alice')).toMatchObject({ c: 0 });
     expect(db.prepare('SELECT COUNT(*) AS c FROM api_keys WHERE lc_username = ?').get('alice')).toMatchObject({ c: 0 });
 
     // Bob's data is untouched — including bob's friend list, which still
     // contains alice's handle (a follower's list is their data, not alice's).
     expect(db.prepare('SELECT COUNT(*) AS c FROM users WHERE lc_username = ?').get('bob')).toMatchObject({ c: 1 });
     expect(db.prepare('SELECT COUNT(*) AS c FROM solved_sets WHERE lc_username = ?').get('bob')).toMatchObject({ c: 1 });
+    expect(db.prepare('SELECT COUNT(*) AS c FROM user_daily_goals WHERE lc_username = ?').get('bob')).toMatchObject({ c: 1 });
     expect(db.prepare('SELECT friend_username FROM user_friends WHERE lc_username = ?').all('bob')).toEqual([
       { friend_username: 'alice' },
     ]);

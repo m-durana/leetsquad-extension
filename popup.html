@@ -16,15 +16,24 @@
       </div>
       <div class="header-actions">
         <button id="friends-btn" class="icon-btn" title="Manage Friends">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
             <circle cx="9" cy="7" r="4"/>
             <line x1="19" y1="8" x2="19" y2="14"/>
             <line x1="22" y1="11" x2="16" y2="11"/>
           </svg>
         </button>
+        <button id="achievements-btn" class="icon-btn" title="Achievements">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 21h8"/>
+            <path d="M12 17v4"/>
+            <path d="M7 4h10v5a5 5 0 0 1-10 0V4z"/>
+            <path d="M17 5h2a2 2 0 0 1 2 2v1a3 3 0 0 1-3 3h-1"/>
+            <path d="M7 5H5a2 2 0 0 0-2 2v1a3 3 0 0 0 3 3h1"/>
+          </svg>
+        </button>
         <button id="settings-btn" class="icon-btn" title="Settings">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"/>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
@@ -34,9 +43,14 @@
 
     <!-- Verify-now banner (shown only when Cloud Sync is on but not yet verified) -->
     <div id="verify-banner" class="verify-banner hidden">
-      <span class="verify-banner-text">Cloud Sync on but not verified. Friends won't see your historical solves.</span>
-      <button id="verify-banner-btn" class="verify-banner-action" type="button">Verify</button>
-      <button id="verify-banner-dismiss" class="verify-banner-close" type="button" aria-label="Dismiss">×</button>
+      <span class="verify-banner-text">Cloud Sync is on but not verified. Friends won't see your historical solves.</span>
+      <button id="verify-banner-btn" class="verify-banner-action verify-banner-action-lg" type="button">Verify</button>
+      <button id="verify-banner-disable" class="verify-banner-secondary" type="button" title="Cloud Sync settings" aria-label="Cloud Sync settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
     </div>
 
     <!-- Tab Navigation -->
@@ -48,16 +62,16 @@
         Leaderboard
       </button>
       <button class="tab" data-tab="mutuals">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
           <circle cx="9" cy="7" r="4"/>
           <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
           <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
         </svg>
-        Mutuals
+        Common
       </button>
       <button class="tab" data-tab="activity">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
         </svg>
         Activity
@@ -122,7 +136,7 @@
 
         <!-- Empty state when no friend selected -->
         <div id="mutuals-empty" class="mutuals-empty">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
             <circle cx="9" cy="7" r="4"/>
             <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
@@ -139,7 +153,7 @@
           <div class="activity-header">
             <h3 class="section-title">Recent Activity</h3>
             <button id="activity-filter-toggle" class="filter-toggle" title="Showing all activity">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
               </svg>
               <span id="filter-label">All Activity</span>
@@ -155,7 +169,7 @@
       <section id="settings-panel" class="settings-panel hidden">
         <div class="settings-header">
           <button id="back-btn" class="icon-btn">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="19" y1="12" x2="5" y2="12"/>
               <polyline points="12 19 5 12 12 5"/>
             </svg>
@@ -172,13 +186,13 @@
             <div class="setting-username">
               <input type="text" id="my-username" placeholder="Username" class="input-small input-wide" aria-label="Your LeetCode username">
               <button id="detect-my-username" class="btn-sm-icon" title="Detect from leetcode.com" style="background: var(--bg-tertiary)">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
                   <polyline points="21 3 21 8 16 8"/>
                 </svg>
               </button>
               <button id="save-my-username" class="btn-sm-icon" title="Save">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="20 6 9 17 4 12"/>
                 </svg>
               </button>
@@ -189,7 +203,7 @@
             <details class="login-details">
               <summary class="login-summary">
                 <span class="setting-label" id="login-summary-label">Sign in (optional)</span>
-                <svg class="login-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg class="login-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="6 9 12 15 18 9"/>
                 </svg>
               </summary>
@@ -203,6 +217,108 @@
             </details>
           </div>
 
+          <button id="open-display-panel" class="setting-item setting-item-nav" type="button">
+            <div class="setting-info">
+              <span class="setting-label">Display & Goals</span>
+              <span class="setting-desc">Widgets, badges, notifications, daily goal.</span>
+            </div>
+            <svg class="nav-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+
+          <button id="open-cloud-sync-panel" class="setting-item setting-item-nav" type="button">
+            <div class="setting-info">
+              <span class="setting-label">Cloud Sync settings</span>
+              <span class="setting-desc">Verify, API key, delete my data.</span>
+              <span id="cloud-sync-nav-status" class="cloud-sync-nav-status"></span>
+            </div>
+            <svg class="nav-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+
+          <button id="open-advanced-panel" class="setting-item setting-item-nav" type="button">
+            <div class="setting-info">
+              <span class="setting-label">Advanced</span>
+              <span class="setting-desc">Debug mode, keyboard shortcuts.</span>
+            </div>
+            <svg class="nav-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+
+        </div>
+      </section>
+
+      <!-- Friends Panel (hidden by default) -->
+      <section id="friends-panel" class="settings-panel hidden">
+        <div class="settings-header">
+          <button id="friends-back-btn" class="icon-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"/>
+              <polyline points="12 19 5 12 12 5"/>
+            </svg>
+          </button>
+          <h2>Friends <span id="friends-count" class="badge">0</span></h2>
+        </div>
+
+        <div class="settings-content">
+          <!-- Add Friend -->
+          <div class="add-friend-section">
+            <div class="add-friend-form">
+              <input type="text" id="friend-username" placeholder="Add friend by username" class="input" aria-label="Add friend by username">
+              <button id="add-friend-btn" class="btn btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Friends List -->
+          <div id="friends-list" class="friends-list">
+            <div class="empty-state">
+              <p>No friends added yet</p>
+              <span>Add friends to start competing!</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Achievements Panel (hidden by default) -->
+      <section id="achievements-panel" class="settings-panel hidden">
+        <div class="settings-header">
+          <button id="achievements-back-btn" class="icon-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"/>
+              <polyline points="12 19 5 12 12 5"/>
+            </svg>
+          </button>
+          <h2>Achievements <span id="achievements-count" class="badge">0</span></h2>
+        </div>
+
+        <div class="settings-content">
+          <div id="achievements-grid" class="ach-grid">
+            <div class="loading">Loading achievements...</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Display & Goals Panel (hidden by default) -->
+      <section id="display-panel" class="settings-panel hidden">
+        <div class="settings-header">
+          <button id="display-back-btn" class="icon-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"/>
+              <polyline points="12 19 5 12 12 5"/>
+            </svg>
+          </button>
+          <h2>Display & Goals</h2>
+        </div>
+
+        <div class="settings-content">
           <div class="setting-item">
             <div class="setting-info">
               <span class="setting-label">Show on Problem Pages</span>
@@ -210,6 +326,17 @@
             </div>
             <label class="toggle">
               <input type="checkbox" id="setting-show-widget" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">Show avatars on Problem Sets</span>
+              <span class="setting-desc">Show friend avatars next to problems on the list</span>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="setting-show-problem-list" checked>
               <span class="toggle-slider"></span>
             </label>
           </div>
@@ -232,18 +359,22 @@
             </div>
             <input type="number" id="setting-daily-goal" class="input-small" min="1" max="50" value="3" aria-label="Daily problem goal">
           </div>
+        </div>
+      </section>
 
-          <button id="open-cloud-sync-panel" class="setting-item setting-item-nav" type="button">
-            <div class="setting-info">
-              <span class="setting-label">Cloud Sync settings</span>
-              <span class="setting-desc">Verify, API key, delete my data.</span>
-              <span id="cloud-sync-nav-status" class="cloud-sync-nav-status"></span>
-            </div>
-            <svg class="nav-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="9 18 15 12 9 6"/>
+      <!-- Advanced Panel (hidden by default) -->
+      <section id="advanced-panel" class="settings-panel hidden">
+        <div class="settings-header">
+          <button id="advanced-back-btn" class="icon-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"/>
+              <polyline points="12 19 5 12 12 5"/>
             </svg>
           </button>
+          <h2>Advanced</h2>
+        </div>
 
+        <div class="settings-content">
           <div class="setting-item">
             <div class="setting-info">
               <span class="setting-label">Debug Mode</span>
@@ -266,48 +397,23 @@
             </div>
           </div>
 
-          <button id="clear-cache-btn" class="btn btn-secondary btn-full">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-            </svg>
-            Clear Cache
-          </button>
-        </div>
-      </section>
+          <div class="settings-actions">
+            <button id="clear-cache-btn" class="btn btn-secondary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+              Clear Cache
+            </button>
 
-      <!-- Friends Panel (hidden by default) -->
-      <section id="friends-panel" class="settings-panel hidden">
-        <div class="settings-header">
-          <button id="friends-back-btn" class="icon-btn">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="19" y1="12" x2="5" y2="12"/>
-              <polyline points="12 19 5 12 12 5"/>
-            </svg>
-          </button>
-          <h2>Friends <span id="friends-count" class="badge">0</span></h2>
-        </div>
-
-        <div class="settings-content">
-          <!-- Add Friend -->
-          <div class="add-friend-section">
-            <div class="add-friend-form">
-              <input type="text" id="friend-username" placeholder="Add friend by username" class="input" aria-label="Add friend by username">
-              <button id="add-friend-btn" class="btn btn-primary">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="12" y1="5" x2="12" y2="19"/>
-                  <line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <!-- Friends List -->
-          <div id="friends-list" class="friends-list">
-            <div class="empty-state">
-              <p>No friends added yet</p>
-              <span>Add friends to start competing!</span>
-            </div>
+            <button id="export-data-btn" class="btn btn-secondary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Export data
+            </button>
           </div>
         </div>
       </section>
@@ -316,7 +422,7 @@
       <section id="cloud-sync-panel" class="settings-panel hidden">
         <div class="settings-header">
           <button id="cloud-sync-back-btn" class="icon-btn">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="19" y1="12" x2="5" y2="12"/>
               <polyline points="12 19 5 12 12 5"/>
             </svg>
@@ -334,13 +440,14 @@
                 and solved slugs are shared.
                 <a href="https://github.com/m-durana/leetsquad-extension/blob/main/README.md#cloud-sync" target="_blank" rel="noopener">Learn more</a>.
               </span>
-              <div id="cloud-sync-status" class="cloud-sync-status hidden"></div>
             </div>
             <label class="toggle">
               <input type="checkbox" id="setting-cloud-sync">
               <span class="toggle-slider"></span>
             </label>
           </div>
+
+          <div id="cloud-sync-status" class="cloud-sync-status hidden"></div>
 
           <div id="cloud-sync-api-key" class="api-key-row hidden">
             <label class="api-key-label" for="api-key-input">API key</label>
@@ -390,17 +497,12 @@
         </p>
         <div class="modal-nonce">
           <code id="cloud-verify-nonce">leetsquad-verify-...</code>
-          <button id="cloud-verify-copy" class="btn btn-secondary btn-small">Copy</button>
         </div>
         <div id="cloud-verify-error" class="modal-error hidden"></div>
         <div class="modal-actions">
           <button id="cloud-verify-cancel" class="btn btn-secondary">Cancel</button>
-          <button id="cloud-verify-go" class="btn btn-primary">Auto-verify</button>
+          <button id="cloud-verify-go" class="btn btn-primary">Verify</button>
         </div>
-        <p class="modal-footnote">
-          Prefer manual? Open <a href="https://leetcode.com/profile/" target="_blank" rel="noopener">leetcode.com/profile</a>,
-          add the code above as a Skill tag, save, then click Auto-verify. You can remove the tag right after.
-        </p>
       </div>
     </div>
 
@@ -443,6 +545,7 @@
   <script src="api.js"></script>
   <script src="storage.js"></script>
   <script src="cloudsync.js"></script>
+  <script src="achievements.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

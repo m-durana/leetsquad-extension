@@ -70,6 +70,12 @@ db.exec(`
     PRIMARY KEY (lc_username, friend_username)
   );
   CREATE INDEX IF NOT EXISTS idx_user_friends_owner ON user_friends(lc_username);
+
+  CREATE TABLE IF NOT EXISTS user_daily_goals (
+    lc_username TEXT PRIMARY KEY,
+    goals_json  TEXT NOT NULL,
+    updated_at  INTEGER NOT NULL
+  );
 `);
 
 export const stmts = {
@@ -190,6 +196,20 @@ export const stmts = {
   deleteFriendsForUser: db.prepare(`DELETE FROM user_friends WHERE lc_username = ?`),
   deleteUserFromAllFriendLists: db.prepare(
     `DELETE FROM user_friends WHERE friend_username = ?`
+  ),
+
+  getDailyGoals: db.prepare(
+    `SELECT goals_json, updated_at FROM user_daily_goals WHERE lc_username = ?`
+  ),
+  upsertDailyGoals: db.prepare(
+    `INSERT INTO user_daily_goals (lc_username, goals_json, updated_at)
+     VALUES (?, ?, ?)
+     ON CONFLICT(lc_username) DO UPDATE SET
+       goals_json = excluded.goals_json,
+       updated_at = excluded.updated_at`
+  ),
+  deleteDailyGoalsForUser: db.prepare(
+    `DELETE FROM user_daily_goals WHERE lc_username = ?`
   ),
 };
 

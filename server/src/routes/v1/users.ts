@@ -18,6 +18,7 @@ v1UsersRouter.delete('/me', deleteMeLimiter, requireAuth, (req: AuthedRequest, r
       stmts.deleteContributionsForTarget.run(username);
       stmts.deleteSolvedSet.run(username);
       stmts.deleteFriendsForUser.run(username);
+      stmts.deleteDailyGoalsForUser.run(username);
       stmts.deleteApiKeysForUser.run(username);
       db.prepare('DELETE FROM public_solved_counts WHERE lc_username = ?').run(username);
       stmts.deleteNoncesForUser.run(username);

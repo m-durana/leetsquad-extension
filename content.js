@@ -37,7 +37,7 @@
         </div>
       </div>
       <button class="leetsquad-close" title="Close">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="18" y1="6" x2="6" y2="18"/>
           <line x1="6" y1="6" x2="18" y2="18"/>
         </svg>
@@ -92,7 +92,7 @@
           </div>
         </div>
         <div class="view-solution">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
             <polyline points="15 3 21 3 21 9"/>
             <line x1="10" y1="14" x2="21" y2="3"/>
@@ -106,7 +106,7 @@
   function renderEmptyState() {
     return `
       <div class="leetsquad-empty">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
           <circle cx="9" cy="7" r="4"/>
           <line x1="19" y1="8" x2="19" y2="14"/>
@@ -128,7 +128,7 @@
           Older solves appear as the cache grows in the background.
         </span>
         <button class="manual-check-btn" data-problem="${escapeHtml(problemSlug)}" title="Pull fresh data from LeetCode now">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="23 4 23 10 17 10"/>
             <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
           </svg>
@@ -181,6 +181,8 @@
         </div>
       `;
     }
+
+    syncExpandedHeight(widget);
   }
 
   // Appends a small "N known solves across your squad, refreshed Xm ago" line
@@ -226,6 +228,7 @@
         <span style="margin-top: 8px; font-size: 11px; color: var(--text-muted);">Refreshing...</span>
       </div>
     `;
+    syncExpandedHeight(widget);
     LeetSquadUtils.armSlowHint(content);
 
     try {
@@ -343,9 +346,12 @@
       // Cached solved-set is an instant "yes" without an API call; recent-AC fallback still authoritative when missing.
       const slugSetResults = await Promise.all(allUsers.map(async (u) => {
         const ts = await StorageManager.getSolvedSlugTimestamp(u, problemSlug);
-        return { username: u, cachedTimestamp: ts };
+        const id = await StorageManager.getSubmissionId(u, problemSlug);
+        return { username: u, cachedTimestamp: ts, cachedSubmissionId: id };
       }));
-      const cachedSolved = new Set(slugSetResults.filter(r => r.cachedTimestamp).map(r => r.username));
+      const cachedSolvedMap = new Map(
+        slugSetResults.filter(r => r.cachedTimestamp).map(r => [r.username, r])
+      );
 
       const [solvedMap, profiles] = await Promise.all([
         LeetCodeAPI.batchCheckSolved(allUsers, problemSlug),
@@ -361,16 +367,21 @@
         }
       }));
 
-      const solvedUsernames = allUsers.filter(u => solvedMap[u]?.solved || cachedSolved.has(u));
+      const solvedUsernames = allUsers.filter(u => solvedMap[u]?.solved || cachedSolvedMap.has(u));
 
       const solvedUsers = await Promise.all(solvedUsernames.map(async (username) => {
-        const sub = solvedMap[username].submission;
+        const sub = solvedMap[username]?.submission;
+        const cached = cachedSolvedMap.get(username);
+        const fallbackSub = !sub && cached
+          ? { titleSlug: problemSlug, timestamp: cached.cachedTimestamp, id: cached.cachedSubmissionId || undefined }
+          : null;
+        const effective = sub || fallbackSub;
         const result = {
           username,
           profile: profiles[username] || null,
-          submissions: sub ? [sub] : [],
+          submissions: effective ? [effective] : [],
           runtime: sub?.runtime || null,
-          submissionId: sub?.id,
+          submissionId: sub?.id || cached?.cachedSubmissionId || undefined,
           runtimePercentile: null,
         };
 
@@ -395,9 +406,11 @@
       // a given friend happened to solve the current problem.
       for (const username of allUsers) {
         if (profiles[username]) {
-          const existing = await StorageManager.getCachedData(username);
+          const existing = await StorageManager.getCachedData(username)
+            || (await StorageManager.getCachedDataWithStale(username))?.data;
           if (!existing || Date.now() - (existing.fetchedAt || 0) > LeetSquadUtils.CACHE_TTL_MS) {
             await StorageManager.setCachedData(username, {
+              ...(existing || {}),
               profile: profiles[username],
               fetchedAt: Date.now()
             });
@@ -426,13 +439,11 @@
   async function showStaleResults(widget, content, allUsers, myUsername, problemSlug) {
     try {
       const staleSolved = [];
+      const seen = new Set();
 
       for (const username of allUsers) {
         const cached = await StorageManager.getCachedDataWithStale(username);
-        if (!cached) continue;
-
-        // Check if submissions in cache indicate this problem was solved
-        const subs = cached.data?.submissions?.submission || [];
+        const subs = cached?.data?.submissions?.submission || [];
         const found = subs.find(s => s.titleSlug === problemSlug && s.statusDisplay === 'Accepted');
 
         if (found) {
@@ -442,6 +453,20 @@
             submissions: [found],
             submissionId: found.id,
           });
+          seen.add(username);
+          continue;
+        }
+
+        const ts = await StorageManager.getSolvedSlugTimestamp(username, problemSlug);
+        if (ts) {
+          const id = await StorageManager.getSubmissionId(username, problemSlug);
+          staleSolved.push({
+            username,
+            profile: cached?.data?.profile || null,
+            submissions: [{ titleSlug: problemSlug, timestamp: ts, id: id || undefined }],
+            submissionId: id || undefined,
+          });
+          seen.add(username);
         }
       }
 
@@ -449,9 +474,7 @@
         updateWidgetUI(widget, content, staleSolved, myUsername, problemSlug);
         return true;
       }
-    } catch (e) {
-      // Stale cache check failed. No problem, fresh data will load
-    }
+    } catch (e) {}
     return false;
   }
 
@@ -470,6 +493,56 @@
 
     currentDisplayMode = mode || 'floating';
     isWidgetExpanded = false;
+  }
+
+  // CSS can't animate height:auto, so measure header + clamped content and pin px.
+  const EXPANDED_CONTENT_MAX = 440;
+  function naturalExpandedHeight(widget) {
+    const header = widget.querySelector('.leetsquad-header');
+    const content = widget.querySelector('.leetsquad-content');
+    const headerH = header ? header.offsetHeight : 0;
+    const contentH = content ? Math.min(content.scrollHeight, EXPANDED_CONTENT_MAX) : 0;
+    return headerH + contentH;
+  }
+
+  function onHeightSettled(widget, cb) {
+    widget.addEventListener('transitionend', function done(e) {
+      if (e.propertyName !== 'height') return;
+      widget.removeEventListener('transitionend', done);
+      cb();
+    });
+  }
+
+  function expandWidget(widget) {
+    isWidgetExpanded = true;
+    widget.classList.add('expanded', 'ls-animating');
+    const target = naturalExpandedHeight(widget);
+    widget.style.height = '48px';
+    void widget.offsetHeight; // commit start height before animating
+    widget.style.height = target + 'px';
+    onHeightSettled(widget, () => {
+      if (isWidgetExpanded) widget.classList.remove('ls-animating');
+    });
+  }
+
+  function collapseWidget(widget) {
+    isWidgetExpanded = false;
+    widget.classList.add('ls-animating');
+    widget.style.height = widget.getBoundingClientRect().height + 'px';
+    void widget.offsetHeight;
+    widget.classList.remove('expanded');
+    widget.style.height = '48px';
+    onHeightSettled(widget, () => {
+      if (!isWidgetExpanded) {
+        widget.style.height = '';
+        widget.classList.remove('ls-animating');
+      }
+    });
+  }
+
+  function syncExpandedHeight(widget) {
+    if (!isWidgetExpanded) return;
+    widget.style.height = naturalExpandedHeight(widget) + 'px';
   }
 
   // Insert widget into page
@@ -492,6 +565,15 @@
     // Always use minimized (icon only) mode
     applyDisplayMode(widget, 'minimized');
 
+    // Keep the open card fitted as content swaps in asynchronously.
+    const contentEl = widget.querySelector('.leetsquad-content');
+    if (contentEl && 'ResizeObserver' in window) {
+      contentResizeObserver = new ResizeObserver(() => {
+        if (isWidgetExpanded) widget.style.height = naturalExpandedHeight(widget) + 'px';
+      });
+      contentResizeObserver.observe(contentEl);
+    }
+
     // Add toggle functionality
     const header = widget.querySelector('.leetsquad-header');
     const closeBtn = widget.querySelector('.leetsquad-close');
@@ -499,16 +581,15 @@
     // Close button to collapse back to icon
     closeBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
-      isWidgetExpanded = false;
-      widget.classList.remove('expanded');
+      collapseWidget(widget);
     });
 
     // Header/icon click to expand
     header?.addEventListener('click', (e) => {
       if (currentDisplayMode === 'minimized') {
         e.stopPropagation();
-        isWidgetExpanded = !isWidgetExpanded;
-        widget.classList.toggle('expanded', isWidgetExpanded);
+        if (isWidgetExpanded) collapseWidget(widget);
+        else expandWidget(widget);
       }
     });
 
@@ -520,8 +601,7 @@
     outsideClickHandler = (e) => {
       if (currentDisplayMode === 'minimized' && isWidgetExpanded) {
         if (!widget.contains(e.target)) {
-          isWidgetExpanded = false;
-          widget.classList.remove('expanded');
+          collapseWidget(widget);
         }
       }
     };
@@ -537,6 +617,7 @@
   // Track observers + handlers for cleanup
   let submissionObserver = null;
   let navigationObserver = null;
+  let contentResizeObserver = null;
   let outsideClickHandler = null;
 
   // Disconnect all observers and handlers (cleanup)
@@ -548,6 +629,10 @@
     if (navigationObserver) {
       navigationObserver.disconnect();
       navigationObserver = null;
+    }
+    if (contentResizeObserver) {
+      contentResizeObserver.disconnect();
+      contentResizeObserver = null;
     }
     if (outsideClickHandler) {
       document.removeEventListener('click', outsideClickHandler);
@@ -689,8 +774,8 @@
     if (msg?.action !== 'toggleWidget') return;
     const widget = document.getElementById('leetsquad-widget');
     if (!widget) return;
-    isWidgetExpanded = !isWidgetExpanded;
-    widget.classList.toggle('expanded', isWidgetExpanded);
+    if (isWidgetExpanded) collapseWidget(widget);
+    else expandWidget(widget);
   });
 
   // Listen for storage changes to update widget in real-time

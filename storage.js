@@ -15,7 +15,8 @@ const StorageManager = {
     CLOUD_SYNC_TOKEN_EXP: 'leetsquad_cloud_sync_token_exp',
     CLOUD_SYNC_USERNAME: 'leetsquad_cloud_sync_username',
     CLOUD_SYNC_LAST_AT: 'leetsquad_cloud_sync_last_at',
-    CLOUD_SYNC_API_KEY: 'leetsquad_cloud_sync_api_key'
+    CLOUD_SYNC_API_KEY: 'leetsquad_cloud_sync_api_key',
+    ACTIVITY_FEED_CACHE: 'leetsquad_activity_feed_cache'
   },
 
   // Cache expiry time. Unified with the in-memory cache via LeetSquadUtils
@@ -136,16 +137,19 @@ const StorageManager = {
 
   // Settings
   async getSettings() {
-    return (await this.get(this.KEYS.SETTINGS)) || {
+    const saved = (await this.get(this.KEYS.SETTINGS)) || {};
+    return {
       showOnProblemPage: true,
+      showOnProblemList: true,
       showSolveTime: true,
       showAttempts: true,
       notifications: true,
       dailyReminder: false,
       reminderTime: '09:00',
       theme: 'dark',
-      widgetDisplayMode: 'minimized', // floating, compact, minimized, sidebar, hidden
-      debugMode: false // Enable debug logging
+      widgetDisplayMode: 'minimized',
+      debugMode: false,
+      ...saved
     };
   },
 
@@ -303,15 +307,22 @@ const StorageManager = {
     if (!username || !Array.isArray(entries) || entries.length === 0) return;
     const all = await this.getAllSolvedSets();
     const set = all[username] || { slugs: {}, lastRefreshed: 0 };
+    if (!set.submissionIds) set.submissionIds = {};
     for (const e of entries) {
       if (!e?.titleSlug) continue;
       const ts = +e.timestamp || 0;
       const prev = set.slugs[e.titleSlug] || 0;
       set.slugs[e.titleSlug] = ts > prev ? ts : prev;
+      if (e.id) set.submissionIds[e.titleSlug] = String(e.id);
     }
     set.lastRefreshed = Date.now();
     all[username] = set;
     await this.set(this.KEYS.SOLVED_SETS, all);
+  },
+
+  async getSubmissionId(username, titleSlug) {
+    const set = await this.getSolvedSet(username);
+    return set.submissionIds?.[titleSlug] || null;
   },
 
   // Drop a user's solved set entirely (e.g. when they're removed as a friend).

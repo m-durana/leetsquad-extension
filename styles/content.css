@@ -60,6 +60,7 @@
   font-weight: 700;
   font-size: 14px;
   letter-spacing: 0.3px;
+  transition: opacity 0.18s ease;
 }
 
 .leetsquad-logo svg,
@@ -456,41 +457,53 @@
   }
 }
 
-/* Minimized Mode - Icon only, expands on click. Animating width/height is
-   layout-bound; we pre-allocate a compositor layer with will-change so the
-   browser can promote it, which materially reduces jitter on mid-tier laptops. */
+/* Minimized Mode - Icon only, expands on click. */
 #leetsquad-widget.mode-minimized {
   width: 48px;
   height: 48px;
-  border-radius: 50%;
+  border-radius: 24px;
   padding: 0;
   margin: 0;
   overflow: hidden;
   cursor: pointer;
   transform-origin: bottom right;
   will-change: width, height, border-radius;
-  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-              height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-              border-radius 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width 0.28s cubic-bezier(0.2, 0, 0, 1),
+              height 0.28s cubic-bezier(0.2, 0, 0, 1),
+              border-radius 0.28s cubic-bezier(0.2, 0, 0, 1);
 }
 
 #leetsquad-widget.mode-minimized .leetsquad-header {
   width: 48px;
   height: 48px;
   padding: 0;
+  margin: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
   border-radius: 50%;
   background: var(--ls-bg-secondary);
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-              opacity 0.25s ease;
   transform: scale(1);
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1),
+              width 0.28s cubic-bezier(0.2, 0, 0, 1),
+              border-radius 0.28s cubic-bezier(0.2, 0, 0, 1),
+              padding 0.28s cubic-bezier(0.2, 0, 0, 1);
 }
 
 #leetsquad-widget.mode-minimized .leetsquad-header:hover {
   transform: scale(1.08);
+}
+
+#leetsquad-widget.mode-minimized .leetsquad-logo {
+  gap: 0;
+  padding: 0;
+  margin: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 #leetsquad-widget.mode-minimized .leetsquad-logo span {
@@ -502,6 +515,8 @@
   width: 28px;
   height: 28px;
   object-fit: contain;
+  display: block;
+  margin: 0 auto;
 }
 
 #leetsquad-widget.mode-minimized .leetsquad-content {
@@ -509,8 +524,7 @@
   opacity: 0;
   max-height: 0;
   overflow: hidden;
-  transition: opacity 0.25s ease 0.15s,
-              max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 0.18s ease;
 }
 
 #leetsquad-widget.mode-minimized .leetsquad-close {
@@ -519,35 +533,67 @@
   transition: opacity 0.2s ease;
 }
 
-/* Expanded state. Content drives the height between min/max, matching the
-   popup's behavior: small when there's nothing to show, taller when full. */
 #leetsquad-widget.mode-minimized.expanded {
   width: 320px;
-  min-height: 180px;
-  max-height: 480px;
+  max-height: 520px;
   height: auto;
   border-radius: 12px;
   overflow: hidden;
   cursor: default;
+  transition: width 0.28s cubic-bezier(0.2, 0, 0, 1),
+              height 0.28s cubic-bezier(0.2, 0, 0, 1),
+              border-radius 0.28s cubic-bezier(0.2, 0, 0, 1);
 }
 
+/* Slim header bar when expanded; gives the close button space off the first card */
 #leetsquad-widget.mode-minimized.expanded .leetsquad-header {
+  width: 100%;
+  height: auto;
+  padding: 7px 14px;
+  border-radius: 0;
+  justify-content: flex-start;
+  background: var(--ls-bg-secondary);
+  border-bottom: 1px solid var(--ls-border);
+}
+
+/* Don't enlarge the bar on hover once it's a full-width header. */
+#leetsquad-widget.mode-minimized.expanded .leetsquad-header:hover {
+  transform: none;
+}
+
+/* Hide the logo mid-transition so it doesn't slide between layouts */
+#leetsquad-widget.mode-minimized.ls-animating .leetsquad-logo {
   opacity: 0;
-  height: 0;
-  transform: scale(0.5);
-  pointer-events: none;
+  transition: none;
+}
+
+#leetsquad-widget.mode-minimized.expanded .leetsquad-logo {
+  gap: 7px;
+  width: auto;
+  height: auto;
+  font-size: 13px;
+}
+
+#leetsquad-widget.mode-minimized.expanded .leetsquad-logo img {
+  width: 16px;
+  height: 16px;
+}
+
+#leetsquad-widget.mode-minimized.expanded .leetsquad-logo span {
+  display: inline;
 }
 
 #leetsquad-widget.mode-minimized.expanded .leetsquad-content {
   opacity: 1;
   max-height: 440px;
   overflow-y: auto;
+  transition: opacity 0.22s ease 0.08s;
 }
 
 #leetsquad-widget.mode-minimized.expanded .leetsquad-close {
   opacity: 1;
   pointer-events: auto;
-  transition: opacity 0.2s ease 0.2s;
+  transition: opacity 0.2s ease 0.15s;
 }
 
 /* Badge with count for minimized mode */
@@ -579,10 +625,10 @@
 /* Close button (top-right corner, outside card flow) */
 .leetsquad-close {
   position: absolute;
-  top: 8px;
+  top: 6px;
   right: 8px;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   background: var(--ls-bg-tertiary);
   border: 1px solid var(--ls-border);
   border-radius: 50%;
@@ -693,5 +739,185 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* ===== Problemset list - stacked friend-solved avatars ===== */
+.ls-ps-host {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.ls-ps-stack {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  outline: none;
+}
+
+.ls-ps-avatars {
+  display: inline-flex;
+  align-items: center;
+}
+
+.ls-ps-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--lc-bg, #1a1a1a);
+  background: #444;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  margin-left: -6px;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 0.5px rgba(0,0,0,0.4);
+  transition: transform 0.15s ease;
+  cursor: pointer;
+}
+
+.ls-ps-avatar[data-ls-href]:hover {
+  transform: translateY(-2px) scale(1.08);
+}
+
+.ls-ps-row[data-ls-href] {
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 4px;
+  margin: 0 -4px;
+}
+
+.ls-ps-row[data-ls-href]:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ls-ps-avatar:first-child {
+  margin-left: 0;
+}
+
+.ls-ps-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ls-ps-initial {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.ls-ps-more {
+  background: #ffa116;
+  color: #1a1a1a;
+  font-size: 9px;
+  font-weight: 700;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.ls-ps-stack:hover .ls-ps-avatar,
+.ls-ps-stack:focus-visible .ls-ps-avatar {
+  transform: translateY(-1px);
+}
+
+/* Popover */
+.ls-ps-popover {
+  position: absolute;
+  z-index: 9999;
+  bottom: calc(100% + 6px);
+  right: 0;
+  background: #1a1a1a;
+  color: #eff1f6;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 8px 10px;
+  min-width: 200px;
+  max-width: 280px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 12px;
+  text-align: left;
+  white-space: normal;
+}
+
+.ls-ps-popover::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 10px;
+}
+
+.ls-ps-stack:hover .ls-ps-popover,
+.ls-ps-stack:focus-within .ls-ps-popover {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.ls-ps-popover-title {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffa116;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.ls-ps-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.ls-ps-row-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: inline-block;
+  background: #333;
+}
+
+.ls-ps-row-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ls-ps-row-name {
+  flex: 1;
+  font-weight: 600;
+  color: #eff1f6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ls-ps-row-time {
+  font-size: 11px;
+  color: #8c8c8c;
+  flex-shrink: 0;
 }
 

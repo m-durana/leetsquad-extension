@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // nudge and never blocks popup rendering.
   try { chrome.runtime?.sendMessage?.({ action: 'uploadMySolvedSet' }); } catch (e) {}
   try { chrome.runtime?.sendMessage?.({ action: 'syncFriends' }); } catch (e) {}
+  try { chrome.runtime?.sendMessage?.({ action: 'syncDailyGoals' }); } catch (e) {}
 
   // DOM Elements
   const tabs = document.querySelectorAll('.tab');
@@ -16,39 +17,35 @@ document.addEventListener('DOMContentLoaded', async () => {
   const friendsBtn = document.getElementById('friends-btn');
   const friendsPanel = document.getElementById('friends-panel');
   const friendsBackBtn = document.getElementById('friends-back-btn');
+  // Achievements panel elements
+  const achievementsBtn = document.getElementById('achievements-btn');
+  const achievementsPanel = document.getElementById('achievements-panel');
+  const achievementsBackBtn = document.getElementById('achievements-back-btn');
+  const achievementsGrid = document.getElementById('achievements-grid');
+  const achievementsCount = document.getElementById('achievements-count');
   const cloudSyncPanel = document.getElementById('cloud-sync-panel');
   const cloudSyncBackBtn = document.getElementById('cloud-sync-back-btn');
   const openCloudSyncPanelBtn = document.getElementById('open-cloud-sync-panel');
   const cloudSyncNavStatus = document.getElementById('cloud-sync-nav-status');
   const verifyBanner = document.getElementById('verify-banner');
   const verifyBannerBtn = document.getElementById('verify-banner-btn');
-  const verifyBannerDismiss = document.getElementById('verify-banner-dismiss');
-
-  const VERIFY_BANNER_REPROMPT_MS = 7 * 24 * 60 * 60 * 1000;
+  const verifyBannerDisable = document.getElementById('verify-banner-disable');
 
   async function renderVerifyBanner() {
     if (!verifyBanner) return;
     try {
       const status = await CloudSync.getStatus();
-      if (!status.enabled || status.verified) {
-        verifyBanner.classList.add('hidden');
-        return;
-      }
-      const data = await new Promise((res) => chrome.storage.local.get('leetsquad_verify_banner_dismissed', res));
-      const last = data?.leetsquad_verify_banner_dismissed || 0;
-      if (Date.now() - last < VERIFY_BANNER_REPROMPT_MS) {
-        verifyBanner.classList.add('hidden');
-        return;
-      }
-      verifyBanner.classList.remove('hidden');
+      verifyBanner.classList.toggle('hidden', !status.enabled || status.verified);
     } catch (e) {
       verifyBanner.classList.add('hidden');
     }
   }
 
-  verifyBannerDismiss?.addEventListener('click', async () => {
-    await chrome.storage.local.set({ leetsquad_verify_banner_dismissed: Date.now() });
-    verifyBanner?.classList.add('hidden');
+  verifyBannerDisable?.addEventListener('click', () => {
+    settingsPanel?.classList.remove('hidden');
+    cloudSyncPanel?.classList.remove('hidden');
+    loadSettings();
+    renderCloudSyncStatus();
   });
 
   let verifyInflight = false;
@@ -171,6 +168,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Settings elements
   const settingShowWidget = document.getElementById('setting-show-widget');
+  const settingShowProblemList = document.getElementById('setting-show-problem-list');
   const settingNotifications = document.getElementById('setting-notifications');
   const settingDebugMode = document.getElementById('setting-debug-mode');
   const settingDailyGoal = document.getElementById('setting-daily-goal');
@@ -232,6 +230,58 @@ document.addEventListener('DOMContentLoaded', async () => {
     friendsPanel.classList.add('hidden');
   });
 
+  // Achievements panel toggle
+  achievementsBtn?.addEventListener('click', () => {
+    achievementsPanel.classList.remove('hidden');
+    loadAchievements();
+  });
+
+  achievementsBackBtn?.addEventListener('click', () => {
+    achievementsPanel.classList.add('hidden');
+  });
+
+  async function loadAchievements() {
+    if (!achievementsGrid) return;
+    try {
+      const result = await Achievements.runPass();
+      const stored = await Achievements.getStored();
+      const total = Achievements.REGISTRY.length;
+      const unlockedCount = Object.keys(stored).length;
+      if (achievementsCount) achievementsCount.textContent = `${unlockedCount}/${total}`;
+
+      const cards = Achievements.REGISTRY.map(a => {
+        const entry = stored[a.id];
+        const unlocked = !!entry;
+        const when = unlocked && entry.unlockedAt ? Achievements.formatDate(entry.unlockedAt) : '';
+        return `
+          <div class="ach-card ${unlocked ? 'unlocked' : 'locked'}" title="${escAttr(a.description)}">
+            <div class="ach-icon">${unlocked ? a.icon : '🔒'}</div>
+            <div class="ach-name">${escText(a.name)}</div>
+            <div class="ach-desc">${escText(a.description)}</div>
+            ${unlocked && when ? `<div class="ach-unlocked-at">Unlocked ${escText(when)}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+
+      achievementsGrid.innerHTML = cards || '<div class="ach-empty">No achievements yet</div>';
+
+      if (result.unlockedNow.length) {
+        const names = result.unlockedNow
+          .map(id => Achievements.getById(id)?.name)
+          .filter(Boolean)
+          .join(', ');
+        if (names) showToast(`Unlocked: ${names}`);
+      }
+    } catch (e) {
+      achievementsGrid.innerHTML = '<div class="ach-empty">Could not load achievements</div>';
+    }
+  }
+
+  function escText(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function escAttr(s) { return escText(s); }
+
   openCloudSyncPanelBtn?.addEventListener('click', () => {
     cloudSyncPanel?.classList.remove('hidden');
     renderCloudSyncStatus();
@@ -240,6 +290,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   cloudSyncBackBtn?.addEventListener('click', () => {
     cloudSyncPanel?.classList.add('hidden');
     updateCloudSyncNavStatus();
+  });
+
+  const displayPanel = document.getElementById('display-panel');
+  document.getElementById('open-display-panel')?.addEventListener('click', () => {
+    displayPanel?.classList.remove('hidden');
+  });
+  document.getElementById('display-back-btn')?.addEventListener('click', () => {
+    displayPanel?.classList.add('hidden');
+  });
+
+  const advancedPanel = document.getElementById('advanced-panel');
+  document.getElementById('open-advanced-panel')?.addEventListener('click', () => {
+    advancedPanel?.classList.remove('hidden');
+  });
+  document.getElementById('advanced-back-btn')?.addEventListener('click', () => {
+    advancedPanel?.classList.add('hidden');
   });
 
   async function updateCloudSyncNavStatus() {
@@ -565,29 +631,42 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    // Paint cached data first if we have any, even if it's expired. We'll
-    // overwrite it below with fresh data once the network call returns.
+    // stale-paint to avoid the "Loading..." flash on popup reopen
     const stalePromises = await Promise.all(allUsers.map(async (u) => {
       const entry = await StorageManager.getCachedDataWithStale(u);
       return entry ? { username: u, data: entry.data } : null;
     }));
     const staleUsers = stalePromises.filter(Boolean);
-    if (staleUsers.length > 0 && period === 'all') {
+    let stalePainted = false;
+    if (staleUsers.length > 0) {
       const stalePeriodStart = getPeriodStartTimestamp(period);
       const renderable = staleUsers
-        .map(u => ({
-          username: u.username,
-          data: u.data,
-          total: u.data.solved?.solvedProblem ?? 0,
-          easy: u.data.solved?.easySolved ?? 0,
-          medium: u.data.solved?.mediumSolved ?? 0,
-          hard: u.data.solved?.hardSolved ?? 0,
-        }))
+        .map(u => {
+          if (period === 'all') {
+            return {
+              username: u.username,
+              data: u.data,
+              total: u.data.solved?.solvedProblem ?? 0,
+              easy: u.data.solved?.easySolved ?? 0,
+              medium: u.data.solved?.mediumSolved ?? 0,
+              hard: u.data.solved?.hardSolved ?? 0,
+            };
+          }
+          const subs = u.data.submissions?.submission;
+          if (!subs) return null;
+          const stats = countSubmissionsInPeriod(u.data.submissions, stalePeriodStart);
+          return { username: u.username, data: u.data, ...stats };
+        })
+        .filter(Boolean)
         .sort((a, b) => b.total - a.total);
-      leaderboardList.innerHTML = renderable
-        .map((user, index) => renderLeaderboardItem(user, index, myUsername))
-        .join('');
-    } else {
+      if (renderable.length > 0) {
+        leaderboardList.innerHTML = renderable
+          .map((user, index) => renderLeaderboardItem(user, index, myUsername))
+          .join('');
+        stalePainted = true;
+      }
+    }
+    if (!stalePainted) {
       leaderboardList.innerHTML = '<div class="loading">Loading leaderboard...</div>';
       LeetSquadUtils.armSlowHint(leaderboardList);
     }
@@ -899,140 +978,128 @@ document.addEventListener('DOMContentLoaded', async () => {
   let activityDataLoaded = false;
 
   // Load activity: fetches data once, then renders pages from the cached list
-  async function loadActivity(showMore = false) {
-    if (activityLoading) return;
-    activityLoading = true;
+  async function fetchActivityFromNetwork() {
+    const [friends, myUsername] = await Promise.all([
+      StorageManager.getFriends(),
+      StorageManager.getMyUsername()
+    ]);
+    const allUsers = myUsername ? [myUsername, ...friends] : friends;
+    if (allUsers.length === 0) return [];
 
-    if (showMore) {
-      activityDisplayCount += ACTIVITY_PAGE_SIZE;
-    } else {
-      activityDisplayCount = ACTIVITY_PAGE_SIZE;
+    const allSubmissions = [];
+    const cachedPerUser = Object.fromEntries(await Promise.all(
+      allUsers.map(async u => {
+        const entry = await StorageManager.getCachedDataWithStale(u);
+        return [u, entry?.data || null];
+      })
+    ));
+
+    let acByUser = {};
+    try {
+      acByUser = await LeetCodeAPI.batchGetRecentAcSubmissions(allUsers, 50);
+    } catch (e) {
+      console.log('Batch AC fetch failed, falling back to per-user:', e);
     }
 
-    // Only fetch from API on first load (not on "show more" or filter toggle)
-    if (!activityDataLoaded) {
-      activityFeed.innerHTML = '<div class="loading">Loading activity...</div>';
-      LeetSquadUtils.armSlowHint(activityFeed);
-
-      const [friends, myUsername] = await Promise.all([
-        StorageManager.getFriends(),
-        StorageManager.getMyUsername()
-      ]);
-
-      const allUsers = myUsername ? [myUsername, ...friends] : friends;
-
-      if (allUsers.length === 0) {
-        activityFeed.innerHTML = `
-          <div class="empty-state">
-            <p>No activity yet</p>
-            <span>Add friends to see their activity!</span>
-          </div>
-        `;
-        activityLoading = false;
-        return;
-      }
-
-      // Batch-fetch all users' recent AC submissions in a single GraphQL
-      // request per group of 5. Profile avatars come from storage cache (if
-      // present); missing avatars degrade gracefully.
-      const allSubmissions = [];
-      const cachedPerUser = Object.fromEntries(await Promise.all(
-        allUsers.map(async u => [u, await StorageManager.getCachedData(u)])
-      ));
-
-      let acByUser = {};
-      try {
-        acByUser = await LeetCodeAPI.batchGetRecentAcSubmissions(allUsers, 50);
-      } catch (e) {
-        console.log('Batch AC fetch failed, falling back to per-user:', e);
-      }
-
-      for (const username of allUsers) {
-        const avatar = cachedPerUser[username]?.profile?.avatar;
-        const graphqlSubs = acByUser[username] || [];
-
-        if (graphqlSubs.length > 0) {
-          allSubmissions.push(...graphqlSubs.map(s => ({
-            ...s,
-            username,
-            avatar,
-            statusDisplay: 'Accepted'
-          })));
-        } else {
-          const cachedSubs = cachedPerUser[username]?.submissions;
-          let subs = cachedSubs;
-          if (!subs?.submission) {
-            try { subs = await LeetCodeAPI.getRecentSubmissions(username, 50); }
-            catch { subs = null; }
-          }
-          const userSubs = (subs?.submission || []).filter(s => s.statusDisplay === 'Accepted')
-            .map(s => ({ ...s, username, avatar }));
-          allSubmissions.push(...userSubs);
+    for (const username of allUsers) {
+      const avatar = cachedPerUser[username]?.profile?.avatar;
+      const graphqlSubs = acByUser[username] || [];
+      if (graphqlSubs.length > 0) {
+        allSubmissions.push(...graphqlSubs.map(s => ({ ...s, username, avatar, statusDisplay: 'Accepted' })));
+      } else {
+        const cachedSubs = cachedPerUser[username]?.submissions;
+        let subs = cachedSubs;
+        if (!subs?.submission) {
+          try { subs = await LeetCodeAPI.getRecentSubmissions(username, 50); } catch { subs = null; }
         }
+        const userSubs = (subs?.submission || []).filter(s => s.statusDisplay === 'Accepted')
+          .map(s => ({ ...s, username, avatar }));
+        allSubmissions.push(...userSubs);
       }
-
-      // Sort by time and mark first-time solves
-      allActivitySubmissions = allSubmissions
-        .filter(s => s.statusDisplay === 'Accepted')
-        .sort((a, b) => b.timestamp - a.timestamp);
-
-      const seenProblems = new Map();
-      allActivitySubmissions.forEach(sub => {
-        const key = `${sub.username}:${sub.titleSlug}`;
-        if (!seenProblems.has(key) || sub.timestamp < seenProblems.get(key)) {
-          seenProblems.set(key, sub.timestamp);
-        }
-      });
-
-      allActivitySubmissions.forEach(sub => {
-        const key = `${sub.username}:${sub.titleSlug}`;
-        sub.isFirstSolve = sub.timestamp === seenProblems.get(key);
-      });
-
-      activityDataLoaded = true;
     }
 
-    // Apply filter (three-way: all / first solves only / repeats only)
-    const filteredSubmissions = activityFilter === 'first'
+    const submissions = allSubmissions
+      .filter(s => s.statusDisplay === 'Accepted')
+      .sort((a, b) => b.timestamp - a.timestamp);
+
+    const seen = new Map();
+    submissions.forEach(sub => {
+      const key = `${sub.username}:${sub.titleSlug}`;
+      if (!seen.has(key) || sub.timestamp < seen.get(key)) seen.set(key, sub.timestamp);
+    });
+    submissions.forEach(sub => {
+      sub.isFirstSolve = sub.timestamp === seen.get(`${sub.username}:${sub.titleSlug}`);
+    });
+
+    return submissions;
+  }
+
+  function renderActivityList() {
+    const filtered = activityFilter === 'first'
       ? allActivitySubmissions.filter(s => s.isFirstSolve)
       : activityFilter === 'repeat'
       ? allActivitySubmissions.filter(s => !s.isFirstSolve)
       : allActivitySubmissions;
 
-    const visible = filteredSubmissions.slice(0, activityDisplayCount);
+    const visible = filtered.slice(0, activityDisplayCount);
 
     if (visible.length === 0) {
       const empty = ACTIVITY_EMPTY[activityFilter];
-      activityFeed.innerHTML = `
-        <div class="empty-state">
-          <p>${empty.head}</p>
-          <span>${empty.sub}</span>
-        </div>
-      `;
-      activityLoading = false;
+      activityFeed.innerHTML = `<div class="empty-state"><p>${empty.head}</p><span>${empty.sub}</span></div>`;
       return;
     }
 
-    activityFeed.innerHTML = visible
-      .map(s => renderActivityItem(s))
-      .join('');
+    activityFeed.innerHTML = visible.map(s => renderActivityItem(s)).join('');
 
-    // Show "Load More" button if there are more items
-    const remaining = filteredSubmissions.length - activityDisplayCount;
+    const remaining = filtered.length - activityDisplayCount;
     if (remaining > 0) {
-      activityFeed.innerHTML += `
-        <button class="load-more-btn" id="load-more-activity">
-          Show ${Math.min(remaining, ACTIVITY_PAGE_SIZE)} more
-        </button>
-      `;
-      document.getElementById('load-more-activity').addEventListener('click', () => {
-        loadActivity(true);
-      });
+      activityFeed.innerHTML += `<button class="load-more-btn" id="load-more-activity">Show ${Math.min(remaining, ACTIVITY_PAGE_SIZE)} more</button>`;
+      document.getElementById('load-more-activity').addEventListener('click', () => loadActivity(true));
     }
 
-    // Fetch percentile on-demand for visible items that don't have it yet
     fetchPercentilesForVisible(visible);
+  }
 
+  async function refreshActivityInBackground() {
+    const fresh = await fetchActivityFromNetwork();
+    if (!fresh.length) return;
+    allActivitySubmissions = fresh;
+    await StorageManager.set(StorageManager.KEYS.ACTIVITY_FEED_CACHE, { submissions: fresh, savedAt: Date.now() });
+    renderActivityList();
+  }
+
+  async function loadActivity(showMore = false) {
+    if (activityLoading) return;
+    activityLoading = true;
+
+    activityDisplayCount = showMore ? activityDisplayCount + ACTIVITY_PAGE_SIZE : ACTIVITY_PAGE_SIZE;
+
+    if (!activityDataLoaded) {
+      const cached = await StorageManager.get(StorageManager.KEYS.ACTIVITY_FEED_CACHE);
+      if (cached?.submissions?.length) {
+        allActivitySubmissions = cached.submissions;
+        activityDataLoaded = true;
+        renderActivityList();
+        activityLoading = false;
+        refreshActivityInBackground();
+        return;
+      }
+
+      activityFeed.innerHTML = '<div class="loading">Loading activity...</div>';
+      LeetSquadUtils.armSlowHint(activityFeed);
+
+      const fresh = await fetchActivityFromNetwork();
+      if (fresh.length === 0) {
+        activityFeed.innerHTML = `<div class="empty-state"><p>No activity yet</p><span>Add friends to see their activity!</span></div>`;
+        activityLoading = false;
+        return;
+      }
+      allActivitySubmissions = fresh;
+      activityDataLoaded = true;
+      await StorageManager.set(StorageManager.KEYS.ACTIVITY_FEED_CACHE, { submissions: fresh, savedAt: Date.now() });
+    }
+
+    renderActivityList();
     activityLoading = false;
   }
 
@@ -1120,10 +1187,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Load settings
   async function loadSettings() {
     const settings = await StorageManager.getSettings();
-    settingShowWidget.checked = settings.showOnProblemPage;
-    settingNotifications.checked = settings.notifications;
-    settingDebugMode.checked = settings.debugMode || false;
-    settingDailyGoal.value = settings.dailyTarget || 3;
+    if (settingShowWidget) settingShowWidget.checked = settings.showOnProblemPage;
+    if (settingShowProblemList) settingShowProblemList.checked = settings.showOnProblemList !== false;
+    if (settingNotifications) settingNotifications.checked = settings.notifications;
+    if (settingDebugMode) settingDebugMode.checked = settings.debugMode || false;
+    if (settingDailyGoal) settingDailyGoal.value = settings.dailyTarget || 3;
 
     const username = await StorageManager.getMyUsername();
     if (username) {
@@ -1191,6 +1259,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         beginCloudVerify();
       });
       await renderApiKeyRow(false);
+    } else if (status.enabled) {
+      cloudSyncStatusEl.classList.remove('hidden');
+      cloudSyncStatusEl.classList.add('expired');
+      cloudSyncStatusEl.innerHTML = `
+        <div class="cloud-sync-cta">
+          <span class="cloud-sync-cta-text">On but not verified. Friends won't see your historical solves.</span>
+          <button type="button" class="btn btn-primary cloud-sync-cta-btn" id="cloud-sync-verify-now">Verify now</button>
+        </div>
+      `;
+      document.getElementById('cloud-sync-verify-now')?.addEventListener('click', () => beginCloudVerify());
+      await renderApiKeyRow(false);
     } else {
       cloudSyncStatusEl.classList.add('hidden');
       cloudSyncStatusEl.textContent = '';
@@ -1200,6 +1279,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   settingCloudSync?.addEventListener('change', async (e) => {
     if (e.target.checked) {
+      await CloudSync.setEnabled(true);
+      await renderCloudSyncStatus();
+      await updateCloudSyncNavStatus();
+      await renderVerifyBanner();
       await beginCloudVerify();
     } else {
       await CloudSync.disconnect();
@@ -1219,7 +1302,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (!username) {
       showToast('Set your LeetCode username first', true);
-      settingCloudSync.checked = false;
       return;
     }
     pendingCloudUsername = username;
@@ -1227,30 +1309,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     cloudVerifyErrorEl.classList.add('hidden');
     cloudVerifyErrorEl.textContent = '';
     cloudVerifyGoBtn.disabled = false;
-    cloudVerifyGoBtn.textContent = 'Auto-verify';
+    cloudVerifyGoBtn.textContent = 'Verify';
 
     try {
       const { nonce } = await CloudSync.startAuth(username);
       cloudVerifyNonceEl.textContent = nonce;
       cloudVerifyModal.classList.remove('hidden');
     } catch (e) {
-      settingCloudSync.checked = false;
       showToast('Could not reach LeetSquad server', true);
     }
   }
 
-  cloudVerifyCopyBtn?.addEventListener('click', () => {
-    const text = cloudVerifyNonceEl.textContent || '';
-    navigator.clipboard?.writeText(text).then(() => {
-      cloudVerifyCopyBtn.textContent = 'Copied';
-      setTimeout(() => { cloudVerifyCopyBtn.textContent = 'Copy'; }, 1500);
-    });
-  });
-
-  cloudVerifyCancelBtn?.addEventListener('click', async () => {
+  cloudVerifyCancelBtn?.addEventListener('click', () => {
     cloudVerifyModal.classList.add('hidden');
-    settingCloudSync.checked = false;
-    await renderCloudSyncStatus();
   });
 
   cloudVerifyGoBtn?.addEventListener('click', async () => {
@@ -1545,15 +1616,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Settings change handlers
-  settingShowWidget.addEventListener('change', async (e) => {
+  settingShowWidget?.addEventListener('change', async (e) => {
     await StorageManager.updateSettings({ showOnProblemPage: e.target.checked });
   });
 
-  settingNotifications.addEventListener('change', async (e) => {
+  settingShowProblemList?.addEventListener('change', async (e) => {
+    await StorageManager.updateSettings({ showOnProblemList: e.target.checked });
+  });
+
+  settingNotifications?.addEventListener('change', async (e) => {
     await StorageManager.updateSettings({ notifications: e.target.checked });
   });
 
-  settingDebugMode.addEventListener('change', async (e) => {
+  settingDebugMode?.addEventListener('change', async (e) => {
     await StorageManager.updateSettings({ debugMode: e.target.checked });
     if (e.target.checked) {
       showToast('Debug mode enabled - check browser console');
@@ -1562,7 +1637,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  settingDailyGoal.addEventListener('change', async (e) => {
+  settingDailyGoal?.addEventListener('change', async (e) => {
     await StorageManager.setDailyTarget(parseInt(e.target.value));
     updateDailyGoal();
   });
@@ -1572,6 +1647,39 @@ document.addEventListener('DOMContentLoaded', async () => {
     showToast('Cache cleared!');
     loadLeaderboard();
     loadFriends();
+  });
+
+  const exportDataBtn = document.getElementById('export-data-btn');
+  exportDataBtn?.addEventListener('click', async () => {
+    try {
+      const K = StorageManager.KEYS;
+      const keys = [
+        K.FRIENDS, K.MY_USERNAME, K.CACHE, K.SETTINGS, K.DAILY_GOALS,
+        K.CHALLENGES, K.ACTIVITY_LOG, K.SOLVED_SETS,
+        'leetsquad_achievements'
+      ];
+      const raw = await new Promise(resolve =>
+        chrome.storage.local.get(keys, resolve)
+      );
+      const payload = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        data: raw
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `leetsquad-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast('Backup downloaded');
+    } catch (e) {
+      console.error('export failed:', e);
+      showToast('Export failed', 'error');
+    }
   });
 
   // Daily goal - fetch from LeetCode API in retrospect
@@ -1789,15 +1897,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Load user data helper
   async function loadUserData(username) {
-    let cached = await StorageManager.getCachedData(username);
-    const cacheValid = cached && cached.fetchedAt && (Date.now() - cached.fetchedAt < LeetSquadUtils.CACHE_TTL_MS);
+    const entry = await StorageManager.getCachedDataWithStale(username);
+    if (entry && !entry.stale) return entry.data;
 
-    if (!cacheValid) {
-      cached = await LeetCodeAPI.getFullUserData(username);
-      if (cached) await StorageManager.setCachedData(username, cached);
+    const fresh = await LeetCodeAPI.getFullUserData(username);
+    if (fresh) {
+      await StorageManager.setCachedData(username, fresh);
+      return fresh;
     }
-
-    return cached;
+    return entry?.data || null;
   }
 
   // Render user avatar and name in mutuals
@@ -1884,6 +1992,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let mySolved = Array.isArray(mySolvedRaw) ? mySolvedRaw : [];
     let friendSolved = Array.isArray(friendSolvedRaw) ? friendSolvedRaw : [];
+
+    // /solved only returns recent ~50; merge in the cumulative local set
+    const [myExtraSet, friendExtraSet] = await Promise.all([
+      StorageManager.getSolvedSet(myUsername),
+      StorageManager.getSolvedSet(friendUsername)
+    ]);
+    function humanizeSlug(slug) {
+      return slug.split('-').map(w => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ');
+    }
+    function mergeIn(list, set) {
+      const seen = new Set(list.map(p => p.titleSlug));
+      for (const slug of Object.keys(set?.slugs || {})) {
+        if (!seen.has(slug)) {
+          list.push({ titleSlug: slug, title: humanizeSlug(slug), difficulty: null });
+          seen.add(slug);
+        }
+      }
+      return list;
+    }
+    mySolved = mergeIn(mySolved, myExtraSet);
+    friendSolved = mergeIn(friendSolved, friendExtraSet);
 
     if (settings.debugMode) {
       console.log('[LeetSquad Debug] Processed solved arrays:', {
@@ -2089,7 +2218,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Initialize
+  // pre-set toggle state before paint to suppress the off->on slide animation
+  document.body.classList.add('preload');
+  await loadSettings();
+  requestAnimationFrame(() => document.body.classList.remove('preload'));
+
   await loadMyUsername();
   renderVerifyBanner().catch(() => {});
   updateCloudSyncNavStatus().catch(() => {});

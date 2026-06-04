@@ -42,7 +42,7 @@
 
     let nonce;
     try {
-      const base = 'https://leetsquad.miro.build';
+      const base = (typeof LeetSquadUtils !== 'undefined' && LeetSquadUtils.CLOUD_BASE) || 'https://leetsquad.miro.build';
       const r = await fetch(`${base}/auth/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

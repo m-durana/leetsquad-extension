@@ -1,7 +1,9 @@
 // LeetSquad - Background Service Worker
 
+try { importScripts('shared.js', 'storage.js', 'achievements.js'); } catch (e) { console.error('importScripts:', e); }
+
 const LEETCODE_GRAPHQL = 'https://leetcode.com/graphql';
-const LEETSQUAD_CLOUD_BASE = 'https://leetsquad.miro.build';
+function cloudBase() { return (typeof LeetSquadUtils !== 'undefined' && LeetSquadUtils.CLOUD_BASE) || 'https://leetsquad.miro.build'; }
 
 // Retry config for background fetches
 const BG_RETRY_CONFIG = {
@@ -106,6 +108,7 @@ async function refreshSolvedSets(friends) {
   const query = `
     query getRecentAc($username: String!, $limit: Int!) {
       recentAcSubmissionList(username: $username, limit: $limit) {
+        id
         titleSlug
         timestamp
       }
@@ -127,11 +130,13 @@ async function refreshSolvedSets(friends) {
       const entries = data?.recentAcSubmissionList || [];
       if (entries.length === 0) continue;
       const set = all[username] || { slugs: {}, lastRefreshed: 0 };
+      if (!set.submissionIds) set.submissionIds = {};
       for (const e of entries) {
         if (!e?.titleSlug) continue;
         const ts = +e.timestamp || 0;
         const prev = set.slugs[e.titleSlug] || 0;
         set.slugs[e.titleSlug] = ts > prev ? ts : prev;
+        if (e.id) set.submissionIds[e.titleSlug] = String(e.id);
       }
       set.lastRefreshed = Date.now();
       all[username] = set;
@@ -290,6 +295,7 @@ async function checkForNewSubmissions() {
       .then(() => uploadMySolvedSetIfOptedIn())
       .catch(e => console.error('refreshSolvedSets:', e));
     syncFriendsIfOptedIn().catch(e => console.error('syncFriends:', e));
+    syncDailyGoalsIfOptedIn().catch(e => console.error('syncDailyGoals:', e));
 
     if (!settings.notifications || friends.length === 0) return;
 
@@ -341,6 +347,29 @@ async function checkForNewSubmissions() {
     }
   } catch (error) {
     console.error('Error checking for updates:', error);
+  }
+
+  try { await runAchievementsPass(); } catch (e) { console.error('achievements pass:', e); }
+}
+
+async function runAchievementsPass() {
+  if (typeof Achievements === 'undefined') return;
+  const result = await Achievements.runPass();
+  if (!result?.unlockedNow?.length) return;
+
+  const settings = (await chrome.storage.local.get(['leetsquad_settings']))?.leetsquad_settings || {};
+  if (!settings.notifications) return;
+
+  for (const id of result.unlockedNow) {
+    const a = Achievements.getById(id);
+    if (!a) continue;
+    chrome.notifications.create(`leetsquad-ach-${id}-${Date.now()}`, {
+      type: 'basic',
+      iconUrl: 'icons/icon128.png',
+      title: `Achievement unlocked: ${a.name}`,
+      message: a.description,
+      priority: 1
+    });
   }
 }
 
@@ -457,7 +486,7 @@ async function uploadMySolvedSetIfOptedIn() {
       if (fSlugs.length > 0) friendSets[f] = fSlugs;
     }
 
-    const r = await fetch(`${LEETSQUAD_CLOUD_BASE}/sync`, {
+    const r = await fetch(`${cloudBase()}/sync`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -517,7 +546,7 @@ async function syncFriendsIfOptedIn() {
     if (Date.now() >= (data.leetsquad_cloud_sync_token_exp || 0)) return { ok: true, skipped: true };
     const friends = data.leetsquad_friends || [];
 
-    const r = await fetch(`${LEETSQUAD_CLOUD_BASE}/friends`, {
+    const r = await fetch(`${cloudBase()}/friends`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -540,6 +569,68 @@ async function syncFriendsIfOptedIn() {
   }
 }
 
+async function syncDailyGoalsIfOptedIn() {
+  try {
+    const data = await chrome.storage.local.get([
+      'leetsquad_cloud_sync_enabled',
+      'leetsquad_cloud_sync_token',
+      'leetsquad_cloud_sync_token_exp',
+      'leetsquad_daily_goals',
+    ]);
+    const enabled = data.leetsquad_cloud_sync_enabled !== false;
+    if (!enabled || !data.leetsquad_cloud_sync_token) return { ok: true, skipped: true };
+    if (Date.now() >= (data.leetsquad_cloud_sync_token_exp || 0)) return { ok: true, skipped: true };
+
+    const token = data.leetsquad_cloud_sync_token;
+    const local = data.leetsquad_daily_goals || {};
+
+    let remote = {};
+    try {
+      const r = await fetch(`${cloudBase()}/daily-goals`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (r.ok) {
+        const body = await r.json();
+        if (body && typeof body.goals === 'object') remote = body.goals;
+      }
+    } catch (_) {}
+
+    const merged = { ...remote };
+    for (const day of Object.keys(local)) {
+      const a = local[day];
+      const b = merged[day];
+      if (!b) { merged[day] = a; continue; }
+      const set = new Set([...(b.problems || []), ...(a.problems || [])]);
+      const problems = Array.from(set);
+      merged[day] = {
+        target: Math.max(a.target || 0, b.target || 0),
+        completed: Math.max(a.completed || 0, b.completed || 0, problems.length),
+        problems
+      };
+    }
+
+    await chrome.storage.local.set({ leetsquad_daily_goals: merged });
+
+    const r2 = await fetch(`${cloudBase()}/daily-goals`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ goals: merged }),
+    });
+    if (!r2.ok) {
+      let body = {};
+      try { body = await r2.json(); } catch (_) {}
+      const code = body.error || `http_${r2.status}`;
+      await recordSyncError('daily_goals', code);
+      return { ok: false, error: code };
+    }
+    return { ok: true };
+  } catch (e) {
+    console.error('syncDailyGoalsIfOptedIn:', e?.message || e);
+    await recordSyncError('daily_goals', 'network');
+    return { ok: false, error: 'network' };
+  }
+}
+
 // Self-serve account + data deletion. JWT-authorized.
 async function deleteMyData() {
   const data = await chrome.storage.local.get([
@@ -553,7 +644,7 @@ async function deleteMyData() {
 
   let resp;
   try {
-    resp = await fetch(`${LEETSQUAD_CLOUD_BASE}/api/v1/users/me`, {
+    resp = await fetch(`${cloudBase()}/api/v1/users/me`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` },
     });
@@ -587,7 +678,7 @@ async function rotateApiKey() {
 
   let resp;
   try {
-    resp = await fetch(`${LEETSQUAD_CLOUD_BASE}/api/v1/key/rotate`, {
+    resp = await fetch(`${cloudBase()}/api/v1/key/rotate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: '{}',
@@ -660,7 +751,7 @@ async function verifySkillsFlow({ nonce, expectedUsername }) {
 
     let serverResp;
     try {
-      const r = await fetch(`${LEETSQUAD_CLOUD_BASE}/auth/verify`, {
+      const r = await fetch(`${cloudBase()}/auth/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lc_username: read.username }),
@@ -731,6 +822,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.action === 'syncFriends') {
     syncFriendsIfOptedIn().then((r) => sendResponse(r || { ok: true }));
+    return true;
+  }
+
+  if (request.action === 'syncDailyGoals') {
+    syncDailyGoalsIfOptedIn().then((r) => sendResponse(r || { ok: true }));
     return true;
   }
 

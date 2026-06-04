@@ -1,7 +1,9 @@
 // Shared utilities used by content.js and popup.js; single TTL source so caches don't disagree.
 const LEETSQUAD_CACHE_TTL_MS = 10 * 60 * 1000;
 
-const LEETSQUAD_CLOUD_BASE = 'https://leetsquad.miro.build';
+const LEETSQUAD_PROD_CLOUD_BASE = 'https://leetsquad.miro.build';
+const LEETSQUAD_DEV_CLOUD_BASE = 'http://localhost:8787';
+let LEETSQUAD_CLOUD_BASE = LEETSQUAD_PROD_CLOUD_BASE;
 
 const LeetSquadUtils = {
   CACHE_TTL_MS: LEETSQUAD_CACHE_TTL_MS,
@@ -102,7 +104,24 @@ const LeetSquadUtils = {
   }
 };
 
-// Export for use in other scripts
 if (typeof window !== 'undefined') {
   window.LeetSquadUtils = LeetSquadUtils;
 }
+if (typeof self !== 'undefined' && typeof window === 'undefined') {
+  self.LeetSquadUtils = LeetSquadUtils;
+}
+
+async function refreshCloudBaseFromSettings() {
+  try {
+    const data = await chrome.storage.local.get('leetsquad_settings');
+    const debug = data?.leetsquad_settings?.debugMode === true;
+    LEETSQUAD_CLOUD_BASE = debug ? LEETSQUAD_DEV_CLOUD_BASE : LEETSQUAD_PROD_CLOUD_BASE;
+    LeetSquadUtils.CLOUD_BASE = LEETSQUAD_CLOUD_BASE;
+  } catch (_) {}
+}
+refreshCloudBaseFromSettings();
+try {
+  chrome.storage?.onChanged?.addListener?.((changes, area) => {
+    if (area === 'local' && changes.leetsquad_settings) refreshCloudBaseFromSettings();
+  });
+} catch (_) {}

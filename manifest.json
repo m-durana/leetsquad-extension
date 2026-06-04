@@ -12,7 +12,8 @@
   ],
   "host_permissions": [
     "https://leetcode.com/*",
-    "https://leetsquad.miro.build/*"
+    "https://leetsquad.miro.build/*",
+    "http://localhost:8787/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -22,6 +23,19 @@
       "matches": ["https://leetcode.com/problems/*"],
       "css": ["styles/content.css"],
       "js": ["shared.js", "api.js", "storage.js", "cloudsync.js", "content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://leetcode.com/problemset/*",
+        "https://leetcode.com/problemset",
+        "https://leetcode.com/problem-list/*",
+        "https://leetcode.com/company/*",
+        "https://leetcode.com/tag/*",
+        "https://leetcode.com/"
+      ],
+      "css": ["styles/content.css"],
+      "js": ["shared.js", "storage.js", "content-problemset.js"],
       "run_at": "document_idle"
     }
   ],

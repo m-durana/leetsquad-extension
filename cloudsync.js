@@ -149,6 +149,67 @@ const CloudSync = {
     }
   },
 
+  async getServerDailyGoals() {
+    const token = await this._jwtIfEnabled();
+    if (!token) return null;
+    try {
+      const r = await fetch(`${this.BASE}/daily-goals`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!r.ok) return null;
+      const body = await r.json();
+      return body && typeof body.goals === 'object' ? { goals: body.goals, updated_at: body.updated_at || 0 } : null;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  async putServerDailyGoals(goals) {
+    const token = await this._jwtIfEnabled();
+    if (!token) return null;
+    try {
+      const r = await fetch(`${this.BASE}/daily-goals`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ goals }),
+      });
+      if (!r.ok) return null;
+      return await r.json();
+    } catch (e) {
+      return null;
+    }
+  },
+
+  // merge local and server goals; for overlapping dates, take the one with higher 'completed'
+  async syncDailyGoals() {
+    const status = await this.getStatus();
+    if (!status.enabled || !status.verified) return null;
+
+    const local = (await StorageManager.get(StorageManager.KEYS.DAILY_GOALS)) || {};
+    const remote = await this.getServerDailyGoals();
+    if (!remote) return null;
+
+    const merged = { ...remote.goals };
+    for (const day of Object.keys(local)) {
+      const a = local[day];
+      const b = merged[day];
+      if (!b) { merged[day] = a; continue; }
+      const aSet = new Set(a.problems || []);
+      const bSet = new Set(b.problems || []);
+      for (const p of bSet) aSet.add(p);
+      const problems = Array.from(aSet);
+      merged[day] = {
+        target: Math.max(a.target || 0, b.target || 0),
+        completed: Math.max(a.completed || 0, b.completed || 0, problems.length),
+        problems
+      };
+    }
+
+    await StorageManager.set(StorageManager.KEYS.DAILY_GOALS, merged);
+    await this.putServerDailyGoals(merged);
+    return merged;
+  },
+
   // Disconnect locally: stop syncing. Server data is retained by design;
   // users request data deletion via a GitHub issue.
   async disconnect() {
