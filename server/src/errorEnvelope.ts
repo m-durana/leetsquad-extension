@@ -16,6 +16,7 @@ const ERROR_STATUS: Record<string, number> = {
   revoked_key: 403,
   forbidden: 403,
   not_found: 404,
+  not_ready: 503,
   not_owner: 403,
   too_many_requests: 429,
   leetcode_unreachable: 502,

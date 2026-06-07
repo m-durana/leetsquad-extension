@@ -10,6 +10,7 @@ import { v1ChangesRouter } from './changes';
 import { v1SlugsRouter } from './slugs';
 import { v1KeyRouter } from './key';
 import { v1OpenApiRouter } from './openapi';
+import { v1CatalogRouter } from './catalog';
 
 export function createV1Router(): Router {
   const router = Router();
@@ -90,6 +91,14 @@ export function createV1Router(): Router {
   );
 
   router.use('/key', v1KeyRouter);
+
+  const catalogLimits = tieredLimiter({
+    anonPerWindow: 30,
+    anonWindowMs: 60 * 60_000,
+    keyedPerWindow: 2,
+    keyedWindowMs: 1_000,
+  });
+  router.use('/catalog', catalogLimits, v1CatalogRouter);
 
   router.use(v1ErrorHandler);
   return router;

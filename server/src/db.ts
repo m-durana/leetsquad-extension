@@ -76,6 +76,15 @@ db.exec(`
     goals_json  TEXT NOT NULL,
     updated_at  INTEGER NOT NULL
   );
+
+  -- Globally cached snapshot of LeetCode's problemsetQuestionList. Single row
+  -- holds the whole catalog as JSON; refreshed by a daily background job.
+  CREATE TABLE IF NOT EXISTS problem_catalog (
+    id           INTEGER PRIMARY KEY CHECK (id = 1),
+    catalog_json TEXT NOT NULL,
+    updated_at   INTEGER NOT NULL,
+    total_count  INTEGER NOT NULL
+  );
 `);
 
 export const stmts = {
@@ -210,6 +219,18 @@ export const stmts = {
   ),
   deleteDailyGoalsForUser: db.prepare(
     `DELETE FROM user_daily_goals WHERE lc_username = ?`
+  ),
+
+  getProblemCatalog: db.prepare(
+    `SELECT catalog_json, updated_at, total_count FROM problem_catalog WHERE id = 1`
+  ),
+  upsertProblemCatalog: db.prepare(
+    `INSERT INTO problem_catalog (id, catalog_json, updated_at, total_count)
+     VALUES (1, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       catalog_json = excluded.catalog_json,
+       updated_at   = excluded.updated_at,
+       total_count  = excluded.total_count`
   ),
 };
 
