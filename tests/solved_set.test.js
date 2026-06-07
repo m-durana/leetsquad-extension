@@ -103,4 +103,41 @@ describe('Solved-slug set: merge semantics', () => {
     await SM.mergeSolvedSlugs('alice', null);
     expect(await SM.getSolvedCount('alice')).toBe(0);
   });
+
+  test('mergeSolvedSlugs persists id + lang + rt + mem per slug', async () => {
+    await SM.mergeSolvedSlugs('alice', [
+      { titleSlug: 'two-sum', timestamp: 100, id: 'sub-1', lang: 'cpp', rt: '5 ms', mem: '8 MB' },
+    ]);
+    expect(await SM.getSubmissionId('alice', 'two-sum')).toBe('sub-1');
+    expect(await SM.getSubmissionMeta('alice', 'two-sum')).toEqual({
+      lang: 'cpp', rt: '5 ms', mem: '8 MB',
+    });
+  });
+
+  test('mergeSolvedSlugs preserves prior meta when new entry omits those fields', async () => {
+    await SM.mergeSolvedSlugs('alice', [
+      { titleSlug: 'two-sum', timestamp: 100, id: 'sub-1', lang: 'cpp', rt: '5 ms', mem: '8 MB' },
+    ]);
+    await SM.mergeSolvedSlugs('alice', [
+      { titleSlug: 'two-sum', timestamp: 200 },
+    ]);
+    expect(await SM.getSubmissionId('alice', 'two-sum')).toBe('sub-1');
+    expect(await SM.getSubmissionMeta('alice', 'two-sum')).toEqual({
+      lang: 'cpp', rt: '5 ms', mem: '8 MB',
+    });
+    expect(await SM.getSolvedSlugTimestamp('alice', 'two-sum')).toBe(200);
+  });
+
+  test('mergeSolvedSlugs overwrites meta when new entry sends non-empty fields', async () => {
+    await SM.mergeSolvedSlugs('alice', [
+      { titleSlug: 'two-sum', id: 'old', lang: 'java', rt: '10 ms' },
+    ]);
+    await SM.mergeSolvedSlugs('alice', [
+      { titleSlug: 'two-sum', id: 'new', lang: 'cpp', rt: '5 ms' },
+    ]);
+    expect(await SM.getSubmissionId('alice', 'two-sum')).toBe('new');
+    expect(await SM.getSubmissionMeta('alice', 'two-sum')).toEqual({
+      lang: 'cpp', rt: '5 ms',
+    });
+  });
 });

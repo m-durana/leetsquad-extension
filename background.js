@@ -111,6 +111,9 @@ async function refreshSolvedSets(friends) {
         id
         titleSlug
         timestamp
+        lang
+        runtime
+        memory
       }
     }
   `;
@@ -131,12 +134,19 @@ async function refreshSolvedSets(friends) {
       if (entries.length === 0) continue;
       const set = all[username] || { slugs: {}, lastRefreshed: 0 };
       if (!set.submissionIds) set.submissionIds = {};
+      if (!set.submissionMeta) set.submissionMeta = {};
       for (const e of entries) {
         if (!e?.titleSlug) continue;
+        const slug = e.titleSlug;
         const ts = +e.timestamp || 0;
-        const prev = set.slugs[e.titleSlug] || 0;
-        set.slugs[e.titleSlug] = ts > prev ? ts : prev;
-        if (e.id) set.submissionIds[e.titleSlug] = String(e.id);
+        const prev = set.slugs[slug] || 0;
+        set.slugs[slug] = ts > prev ? ts : prev;
+        if (e.id) set.submissionIds[slug] = String(e.id);
+        const meta = set.submissionMeta[slug] || {};
+        if (e.lang) meta.lang = String(e.lang);
+        if (e.runtime) meta.rt = String(e.runtime);
+        if (e.memory) meta.mem = String(e.memory);
+        if (meta.lang || meta.rt || meta.mem) set.submissionMeta[slug] = meta;
       }
       set.lastRefreshed = Date.now();
       all[username] = set;
@@ -470,8 +480,29 @@ async function uploadMySolvedSetIfOptedIn() {
     if (!username) return;
 
     const allSets = data.leetsquad_solved_sets || {};
+    const buildRichMap = (set) => {
+      if (!set || !set.slugs) return {};
+      const out = {};
+      const ids = set.submissionIds || {};
+      const meta = set.submissionMeta || {};
+      for (const slug of Object.keys(set.slugs)) {
+        const rec = {};
+        const ts = +set.slugs[slug] || 0;
+        if (ts > 0) rec.ts = ts;
+        if (ids[slug]) rec.id = String(ids[slug]);
+        const m = meta[slug];
+        if (m) {
+          if (m.lang) rec.lang = m.lang;
+          if (m.rt) rec.rt = m.rt;
+          if (m.mem) rec.mem = m.mem;
+        }
+        out[slug] = rec;
+      }
+      return out;
+    };
+
     const selfSet = allSets[username] || { slugs: {} };
-    const slugs = Object.keys(selfSet.slugs || {});
+    const slugs = buildRichMap(selfSet);
 
     // Push accreted friend observations; server unions contributions from many sensors,
     // and every entry is bounded by the target's public `userProblemsSolved`
@@ -481,9 +512,8 @@ async function uploadMySolvedSetIfOptedIn() {
     );
     const friendSets = {};
     for (const f of friendList) {
-      const fset = allSets[f];
-      const fSlugs = fset?.slugs ? Object.keys(fset.slugs) : [];
-      if (fSlugs.length > 0) friendSets[f] = fSlugs;
+      const fmap = buildRichMap(allSets[f]);
+      if (Object.keys(fmap).length > 0) friendSets[f] = fmap;
     }
 
     const r = await fetch(`${cloudBase()}/sync`, {
@@ -496,7 +526,7 @@ async function uploadMySolvedSetIfOptedIn() {
         slugs,
         friend_sets: friendSets,
         updated_at: Date.now(),
-        schema_version: 1,
+        schema_version: 2,
       }),
     });
     if (r.status === 401) {

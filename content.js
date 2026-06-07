@@ -248,7 +248,14 @@
         if (subs.length === 0) return;
         await StorageManager.mergeSolvedSlugs(
           u,
-          subs.map(s => ({ titleSlug: s.titleSlug, timestamp: s.timestamp }))
+          subs.map(s => ({
+            titleSlug: s.titleSlug,
+            timestamp: s.timestamp,
+            id: s.id,
+            lang: s.lang,
+            rt: s.runtime,
+            mem: s.memory,
+          }))
         );
       }));
 
@@ -343,14 +350,16 @@
         await Promise.all(allUsers.map(u => CloudSync.fetchAndMergeFriend(u).catch(() => null)));
       }
 
-      // Cached solved-set is an instant "yes" without an API call; recent-AC fallback still authoritative when missing.
+      // Cached slug-set is an instant "yes" without an API call. Presence is what
+      // counts; ts may be 0 for slugs pulled via cloud sync without timestamps.
       const slugSetResults = await Promise.all(allUsers.map(async (u) => {
+        const inSet = await StorageManager.hasSolvedSlug(u, problemSlug);
         const ts = await StorageManager.getSolvedSlugTimestamp(u, problemSlug);
         const id = await StorageManager.getSubmissionId(u, problemSlug);
-        return { username: u, cachedTimestamp: ts, cachedSubmissionId: id };
+        return { username: u, inSet, cachedTimestamp: ts, cachedSubmissionId: id };
       }));
       const cachedSolvedMap = new Map(
-        slugSetResults.filter(r => r.cachedTimestamp).map(r => [r.username, r])
+        slugSetResults.filter(r => r.inSet).map(r => [r.username, r])
       );
 
       const [solvedMap, profiles] = await Promise.all([
@@ -363,7 +372,14 @@
       await Promise.all(allUsers.map(async (u) => {
         const sub = solvedMap[u]?.submission;
         if (sub?.titleSlug && sub?.timestamp) {
-          await StorageManager.mergeSolvedSlugs(u, [{ titleSlug: sub.titleSlug, timestamp: sub.timestamp }]);
+          await StorageManager.mergeSolvedSlugs(u, [{
+            titleSlug: sub.titleSlug,
+            timestamp: sub.timestamp,
+            id: sub.id,
+            lang: sub.lang,
+            rt: sub.runtime,
+            mem: sub.memory,
+          }]);
         }
       }));
 

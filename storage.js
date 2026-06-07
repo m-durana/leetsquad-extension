@@ -272,7 +272,12 @@ const StorageManager = {
   },
 
   // ===== Solved-slug set =====
-  // Shape: { [username]: { slugs: { [titleSlug]: timestampSec }, lastRefreshed: ms } }
+  // Shape per user: {
+  //   slugs:          { [slug]: timestampSec },
+  //   submissionIds:  { [slug]: "id" },
+  //   submissionMeta: { [slug]: { lang, rt, mem } },
+  //   lastRefreshed:  ms
+  // }
 
   async getAllSolvedSets() {
     return (await this.get(this.KEYS.SOLVED_SETS)) || {};
@@ -301,19 +306,28 @@ const StorageManager = {
     return Object.keys(set.slugs).length;
   },
 
-  // Merge a batch of {titleSlug, timestamp} entries into a user's set, keeping
-  // the latest timestamp per slug. Persists in one storage write.
+  // Merge a batch of entries into a user's set. Each entry:
+  //   { titleSlug, timestamp?, id?, lang?, rt?, mem? }
+  // Keeps the latest timestamp; preserves existing id/lang/rt/mem when an
+  // incoming entry omits them. Persists in one storage write.
   async mergeSolvedSlugs(username, entries) {
     if (!username || !Array.isArray(entries) || entries.length === 0) return;
     const all = await this.getAllSolvedSets();
     const set = all[username] || { slugs: {}, lastRefreshed: 0 };
     if (!set.submissionIds) set.submissionIds = {};
+    if (!set.submissionMeta) set.submissionMeta = {};
     for (const e of entries) {
       if (!e?.titleSlug) continue;
+      const slug = e.titleSlug;
       const ts = +e.timestamp || 0;
-      const prev = set.slugs[e.titleSlug] || 0;
-      set.slugs[e.titleSlug] = ts > prev ? ts : prev;
-      if (e.id) set.submissionIds[e.titleSlug] = String(e.id);
+      const prev = set.slugs[slug] || 0;
+      set.slugs[slug] = ts > prev ? ts : prev;
+      if (e.id) set.submissionIds[slug] = String(e.id);
+      const meta = set.submissionMeta[slug] || {};
+      if (e.lang) meta.lang = String(e.lang);
+      if (e.rt) meta.rt = String(e.rt);
+      if (e.mem) meta.mem = String(e.mem);
+      if (meta.lang || meta.rt || meta.mem) set.submissionMeta[slug] = meta;
     }
     set.lastRefreshed = Date.now();
     all[username] = set;
@@ -323,6 +337,11 @@ const StorageManager = {
   async getSubmissionId(username, titleSlug) {
     const set = await this.getSolvedSet(username);
     return set.submissionIds?.[titleSlug] || null;
+  },
+
+  async getSubmissionMeta(username, titleSlug) {
+    const set = await this.getSolvedSet(username);
+    return set.submissionMeta?.[titleSlug] || null;
   },
 
   // Drop a user's solved set entirely (e.g. when they're removed as a friend).

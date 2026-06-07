@@ -95,11 +95,25 @@ const CloudSync = {
       const r = await fetch(`${this.BASE}/user/${encodeURIComponent(username)}`);
       if (r.status === 404) return { ok: false, error: 'not_found' };
       if (!r.ok) return { ok: false, error: `http_${r.status}` };
-      const { slugs, updated_at } = await r.json();
-      if (!Array.isArray(slugs)) return { ok: false, error: 'bad_payload' };
-      const entries = slugs.map((s) => ({ titleSlug: s, timestamp: 0 }));
+      const body = await r.json();
+      const details = body?.solved_slug_details;
+      let entries;
+      if (details && typeof details === 'object') {
+        entries = Object.entries(details).map(([slug, rec]) => ({
+          titleSlug: slug,
+          timestamp: rec?.ts || 0,
+          id: rec?.id,
+          lang: rec?.lang,
+          rt: rec?.rt,
+          mem: rec?.mem,
+        }));
+      } else if (Array.isArray(body?.slugs)) {
+        entries = body.slugs.map((s) => ({ titleSlug: s, timestamp: 0 }));
+      } else {
+        return { ok: false, error: 'bad_payload' };
+      }
       await StorageManager.mergeSolvedSlugs(username, entries);
-      return { ok: true, updated_at, count: slugs.length };
+      return { ok: true, updated_at: body.updated_at, count: entries.length };
     } catch (e) {
       return { ok: false, error: 'network' };
     }
