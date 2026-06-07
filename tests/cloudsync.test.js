@@ -181,3 +181,67 @@ describe('CloudSync.getStatus default-on behaviour', () => {
     expect(s.enabled).toBe(false);
   });
 });
+
+describe('CloudSync.fetchProblemCatalogIfStale', () => {
+  test('fetches and persists when no local cache exists', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({
+        updated_at: 1700000000000,
+        total_count: 2,
+        problems: {
+          'two-sum': { title: 'Two Sum', id: 1, difficulty: 'Easy', paid: false, acRate: 55.2 },
+          'add-two-numbers': { title: 'Add Two Numbers', id: 2, difficulty: 'Medium', paid: false, acRate: 44.1 },
+        },
+      }),
+    });
+    const r = await CloudSync.fetchProblemCatalogIfStale();
+    expect(r.ok).toBe(true);
+    expect(r.cached).toBe(false);
+    expect(r.count).toBe(2);
+    const cached = await StorageManager.getProblemCatalog();
+    expect(cached.problems['two-sum'].difficulty).toBe('Easy');
+    expect(cached.total_count).toBe(2);
+  });
+
+  test('skips network when local cache is fresh', async () => {
+    await StorageManager.setProblemCatalog({
+      updated_at: Date.now() - 1000,
+      total_count: 1,
+      problems: { 'two-sum': { difficulty: 'Easy' } },
+    });
+    const r = await CloudSync.fetchProblemCatalogIfStale();
+    expect(r.ok).toBe(true);
+    expect(r.cached).toBe(true);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  test('refetches when local cache is older than 24h', async () => {
+    await StorageManager.setProblemCatalog({
+      updated_at: Date.now() - 25 * 60 * 60_000,
+      total_count: 1,
+      problems: { 'two-sum': { difficulty: 'Easy' } },
+    });
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({
+        updated_at: Date.now(),
+        total_count: 1,
+        problems: { 'two-sum': { difficulty: 'Easy', id: 1, title: 'Two Sum', paid: false, acRate: 55.0 } },
+      }),
+    });
+    const r = await CloudSync.fetchProblemCatalogIfStale();
+    expect(r.ok).toBe(true);
+    expect(r.cached).toBe(false);
+  });
+
+  test('returns ok:false on bad payload without overwriting cache', async () => {
+    await StorageManager.setProblemCatalog({ updated_at: 1, total_count: 1, problems: { 'a': { difficulty: 'Easy' } } });
+    fetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ updated_at: Date.now() }) });
+    const r = await CloudSync.fetchProblemCatalogIfStale();
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe('bad_payload');
+    const cached = await StorageManager.getProblemCatalog();
+    expect(cached.problems.a.difficulty).toBe('Easy');
+  });
+});

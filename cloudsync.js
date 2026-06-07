@@ -224,6 +224,30 @@ const CloudSync = {
     return merged;
   },
 
+  // Fetch the global problem catalog from our server, persist locally with a
+  // 24h TTL. Public endpoint, no auth required. Refreshes only when stale or
+  // missing; safe to call on every popup open.
+  async fetchProblemCatalogIfStale() {
+    const CATALOG_TTL_MS = 24 * 60 * 60_000;
+    try {
+      const local = await StorageManager.getProblemCatalog();
+      const fresh = local?.updated_at && Date.now() - local.updated_at < CATALOG_TTL_MS;
+      if (fresh) return { ok: true, cached: true };
+      const r = await fetch(`${this.BASE}/api/v1/catalog`);
+      if (!r.ok) return { ok: false, error: `http_${r.status}` };
+      const body = await r.json();
+      if (!body?.problems || typeof body.problems !== 'object') return { ok: false, error: 'bad_payload' };
+      await StorageManager.setProblemCatalog({
+        updated_at: body.updated_at || Date.now(),
+        total_count: body.total_count || Object.keys(body.problems).length,
+        problems: body.problems,
+      });
+      return { ok: true, cached: false, count: Object.keys(body.problems).length };
+    } catch (e) {
+      return { ok: false, error: 'network' };
+    }
+  },
+
   // Disconnect locally: stop syncing. Server data is retained by design;
   // users request data deletion via a GitHub issue.
   async disconnect() {

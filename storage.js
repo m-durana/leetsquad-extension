@@ -16,7 +16,8 @@ const StorageManager = {
     CLOUD_SYNC_USERNAME: 'leetsquad_cloud_sync_username',
     CLOUD_SYNC_LAST_AT: 'leetsquad_cloud_sync_last_at',
     CLOUD_SYNC_API_KEY: 'leetsquad_cloud_sync_api_key',
-    ACTIVITY_FEED_CACHE: 'leetsquad_activity_feed_cache'
+    ACTIVITY_FEED_CACHE: 'leetsquad_activity_feed_cache',
+    PROBLEM_CATALOG: 'leetsquad_problem_catalog'
   },
 
   // Cache expiry time. Unified with the in-memory cache via LeetSquadUtils
@@ -342,6 +343,22 @@ const StorageManager = {
   async getSubmissionMeta(username, titleSlug) {
     const set = await this.getSolvedSet(username);
     return set.submissionMeta?.[titleSlug] || null;
+  },
+
+  // ===== Problem catalog (server-cached snapshot of LeetCode problemset) =====
+  // Shape: { updated_at, total_count, problems: { [slug]: { title, id, difficulty, paid, acRate } } }
+
+  async getProblemCatalog() {
+    return await this.get(this.KEYS.PROBLEM_CATALOG);
+  },
+
+  async setProblemCatalog(catalog) {
+    await this.set(this.KEYS.PROBLEM_CATALOG, catalog);
+  },
+
+  async getProblemDifficulty(slug) {
+    const catalog = await this.getProblemCatalog();
+    return catalog?.problems?.[slug]?.difficulty || null;
   },
 
   // Drop a user's solved set entirely (e.g. when they're removed as a friend).

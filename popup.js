@@ -5,6 +5,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   try { chrome.runtime?.sendMessage?.({ action: 'uploadMySolvedSet' }); } catch (e) {}
   try { chrome.runtime?.sendMessage?.({ action: 'syncFriends' }); } catch (e) {}
   try { chrome.runtime?.sendMessage?.({ action: 'syncDailyGoals' }); } catch (e) {}
+  if (typeof CloudSync !== 'undefined') {
+    CloudSync.fetchProblemCatalogIfStale().catch(() => {});
+  }
 
   // DOM Elements
   const tabs = document.querySelectorAll('.tab');
@@ -629,8 +632,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     return 0; // all time
   }
 
-  // recentSubmissionList omits difficulty, so easy/medium/hard may sum to less than total.
-  function countSubmissionsInPeriod(submissions, periodStart) {
+  // recentSubmissionList omits difficulty; we join against the cached problem
+  // catalog (fetched from our server) to bucket by E/M/H.
+  function countSubmissionsInPeriod(submissions, periodStart, catalog) {
     if (!submissions?.submission) return { total: 0, easy: 0, medium: 0, hard: 0 };
 
     const accepted = submissions.submission.filter(s =>
@@ -640,7 +644,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const uniqueProblems = new Map();
     accepted.forEach(s => {
       if (!uniqueProblems.has(s.titleSlug)) {
-        uniqueProblems.set(s.titleSlug, s.difficulty || null);
+        const fromSub = s.difficulty || null;
+        const fromCatalog = catalog?.[s.titleSlug]?.difficulty || null;
+        uniqueProblems.set(s.titleSlug, fromSub || fromCatalog);
       }
     });
 
@@ -659,10 +665,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function loadLeaderboard(period = currentPeriod) {
     currentPeriod = period;
 
-    const [friends, myUsername] = await Promise.all([
+    const [friends, myUsername, cachedCatalog] = await Promise.all([
       StorageManager.getFriends(),
-      StorageManager.getMyUsername()
+      StorageManager.getMyUsername(),
+      StorageManager.getProblemCatalog().catch(() => null),
     ]);
+    const catalog = cachedCatalog?.problems || null;
 
     const allUsers = myUsername ? [myUsername, ...friends.filter(f => f !== myUsername)] : friends;
 
@@ -699,7 +707,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
           const subs = u.data.submissions?.submission;
           if (!subs) return null;
-          const stats = countSubmissionsInPeriod(u.data.submissions, stalePeriodStart);
+          const stats = countSubmissionsInPeriod(u.data.submissions, stalePeriodStart, catalog);
           return { username: u.username, data: u.data, ...stats };
         })
         .filter(Boolean)
@@ -789,7 +797,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           };
         } else {
           // Calculate stats from submissions in period
-          const stats = countSubmissionsInPeriod(u.data.submissions, periodStart);
+          const stats = countSubmissionsInPeriod(u.data.submissions, periodStart, catalog);
           return {
             username: u.username,
             data: u.data,
@@ -839,7 +847,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             hard: u.data.solved?.hardSolved ?? 0,
           };
         }
-        const stats = countSubmissionsInPeriod(u.data.submissions, periodStart);
+        const stats = countSubmissionsInPeriod(u.data.submissions, periodStart, catalog);
         return { username: u.username, data: u.data, ...stats };
       })
       .sort((a, b) => b.total - a.total);
