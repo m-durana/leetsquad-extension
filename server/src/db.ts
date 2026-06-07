@@ -139,7 +139,7 @@ export const stmts = {
      WHERE target_username = ? AND contributor_username = ?`
   ),
   getContributionsForTarget: db.prepare(
-    `SELECT contributor_username, slugs_json FROM contributions
+    `SELECT contributor_username, slugs_json, updated_at FROM contributions
      WHERE target_username = ?`
   ),
   countContributorsForTarget: db.prepare(
@@ -216,3 +216,101 @@ export const stmts = {
 export function sweepExpiredNonces(): void {
   stmts.deleteExpiredNonces.run(Date.now());
 }
+
+// Per-slug observation. All fields optional; an empty record {} means the slug
+// was observed but no metadata is known yet.
+export interface SlugRecord {
+  ts?: number;     // submission unix seconds
+  id?: string;     // LeetCode submission id
+  lang?: string;   // "cpp", "java", "python3", ...
+  rt?: string;     // raw runtime, e.g. "5 ms"
+  mem?: string;    // raw memory, e.g. "10 MB"
+}
+export type SlugMap = Record<string, SlugRecord>;
+
+// Reads tolerate three historical shapes:
+//   v1:    ["a","b"]                     -> {a:{}, b:{}}
+//   v1.5:  {"a": 1700000000}             -> {a:{ts:1700000000}}
+//   v2:    {"a": {ts, id, lang, rt, mem}} (as-is)
+export function parseSlugsJson(json: string | null | undefined): SlugMap {
+  if (!json) return {};
+  let v: unknown;
+  try { v = JSON.parse(json); } catch { return {}; }
+  if (Array.isArray(v)) {
+    const out: SlugMap = {};
+    for (const s of v) if (typeof s === 'string') out[s] = {};
+    return out;
+  }
+  if (v && typeof v === 'object') {
+    const out: SlugMap = {};
+    for (const [k, raw] of Object.entries(v as Record<string, unknown>)) {
+      if (typeof k !== 'string') continue;
+      if (typeof raw === 'number') {
+        if (Number.isFinite(raw) && raw >= 0) out[k] = { ts: Math.floor(raw) };
+        else out[k] = {};
+        continue;
+      }
+      if (raw && typeof raw === 'object') {
+        const r = raw as Record<string, unknown>;
+        const rec: SlugRecord = {};
+        if (typeof r.ts === 'number' && Number.isFinite(r.ts) && r.ts >= 0) rec.ts = Math.floor(r.ts);
+        if (typeof r.id === 'string' && r.id.length > 0 && r.id.length <= 64) rec.id = r.id;
+        if (typeof r.lang === 'string' && r.lang.length > 0 && r.lang.length <= 32) rec.lang = r.lang;
+        if (typeof r.rt === 'string' && r.rt.length > 0 && r.rt.length <= 32) rec.rt = r.rt;
+        if (typeof r.mem === 'string' && r.mem.length > 0 && r.mem.length <= 32) rec.mem = r.mem;
+        out[k] = rec;
+      } else {
+        out[k] = {};
+      }
+    }
+    return out;
+  }
+  return {};
+}
+
+export function serializeSlugMap(m: SlugMap): string {
+  return JSON.stringify(m);
+}
+
+// Merge incoming into prev: keep max ts; for id/lang/rt/mem prefer the most
+// recent non-empty value, but never erase a known value with an empty one.
+export function mergeSlugRecord(prev: SlugRecord, incoming: SlugRecord): SlugRecord {
+  const out: SlugRecord = { ...prev };
+  if (typeof incoming.ts === 'number' && (out.ts === undefined || incoming.ts > out.ts)) out.ts = incoming.ts;
+  if (incoming.id) out.id = incoming.id;
+  if (incoming.lang) out.lang = incoming.lang;
+  if (incoming.rt) out.rt = incoming.rt;
+  if (incoming.mem) out.mem = incoming.mem;
+  return out;
+}
+
+export function unionSlugMaps(maps: SlugMap[]): SlugMap {
+  const out: SlugMap = {};
+  for (const m of maps) {
+    for (const [slug, rec] of Object.entries(m)) {
+      out[slug] = mergeSlugRecord(out[slug] || {}, rec);
+    }
+  }
+  return out;
+}
+
+// One-time migration: bring legacy v1 arrays and v1.5 number-valued objects up
+// to the v2 SlugRecord shape. Idempotent; safe to run every boot.
+(function migrateSlugsJsonToV2() {
+  const tables = ['solved_sets', 'contributions'];
+  const tx = db.transaction(() => {
+    for (const table of tables) {
+      const rows = db.prepare(`SELECT rowid, slugs_json FROM ${table}`).all() as Array<{
+        rowid: number;
+        slugs_json: string;
+      }>;
+      for (const r of rows) {
+        const parsed = parseSlugsJson(r.slugs_json);
+        const normalized = serializeSlugMap(parsed);
+        if (normalized === r.slugs_json) continue;
+        db.prepare(`UPDATE ${table} SET slugs_json = ? WHERE rowid = ?`).run(normalized, r.rowid);
+      }
+    }
+  });
+  try { tx(); } catch (e) { console.error('slugs_json migration failed:', e); }
+})();

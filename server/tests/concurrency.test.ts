@@ -28,12 +28,14 @@ function seedVerifiedUser(username: string) {
 }
 
 function seedSolvedSet(username: string, slugs: string[], updated_at = Date.now()) {
+  const map: Record<string, Record<string, never>> = {};
+  for (const s of slugs) map[s] = {};
   db.prepare(
     `INSERT INTO solved_sets (lc_username, slugs_json, schema_version, updated_at, last_self_sync_at)
      VALUES (?, ?, ?, ?, ?)
      ON CONFLICT(lc_username) DO UPDATE SET slugs_json = excluded.slugs_json,
        updated_at = excluded.updated_at, last_self_sync_at = excluded.last_self_sync_at`
-  ).run(username, JSON.stringify(slugs), 1, updated_at, updated_at);
+  ).run(username, JSON.stringify(map), 2, updated_at, updated_at);
 }
 
 function syncBody(slugs: string[], friendSets: Record<string, string[]> = {}, ts = Date.now()) {
@@ -92,7 +94,7 @@ describe('Multi-account isolation', () => {
     issueKeyForUser('alice');
     issueKeyForUser('bob');
     db.prepare('INSERT INTO contributions (target_username, contributor_username, slugs_json, updated_at) VALUES (?, ?, ?, ?)')
-      .run('alice', 'bob', JSON.stringify(['two-sum']), Date.now());
+      .run('alice', 'bob', JSON.stringify({ 'two-sum': {} }), Date.now());
     db.prepare('INSERT INTO user_friends (lc_username, friend_username, added_at) VALUES (?, ?, ?)')
       .run('alice', 'bob', Date.now());
 
@@ -121,7 +123,7 @@ describe('Multi-account isolation', () => {
     const union = (db.prepare('SELECT slugs_json FROM solved_sets WHERE lc_username = ?').get('target') as {
       slugs_json: string;
     }).slugs_json;
-    expect(JSON.parse(union).sort()).toEqual(['s1', 's2', 's3']);
+    expect(Object.keys(JSON.parse(union)).sort()).toEqual(['s1', 's2', 's3']);
     const contribs = db
       .prepare('SELECT contributor_username FROM contributions WHERE target_username = ? ORDER BY contributor_username')
       .all('target') as Array<{ contributor_username: string }>;
@@ -146,7 +148,7 @@ describe('Race conditions', () => {
       | { slugs_json: string }
       | undefined;
     expect(row).toBeTruthy();
-    const union = JSON.parse(row!.slugs_json).sort();
+    const union = Object.keys(JSON.parse(row!.slugs_json)).sort();
     expect(union).toEqual(['s0', 's1', 's2', 's3', 'shared']);
     const cc = db.prepare('SELECT COUNT(*) AS c FROM contributions WHERE target_username = ?').get('target') as {
       c: number;
@@ -251,7 +253,7 @@ describe('Race conditions', () => {
     const row = db.prepare('SELECT slugs_json FROM solved_sets WHERE lc_username = ?').get('target') as
       | { slugs_json: string }
       | undefined;
-    const union = row ? JSON.parse(row.slugs_json) : [];
+    const union = row ? Object.keys(JSON.parse(row.slugs_json)) : [];
     // grace = 50, so union is bounded by 10 + 50 = 60.
     expect(union.length).toBeLessThanOrEqual(60);
   });

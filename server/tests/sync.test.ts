@@ -56,7 +56,7 @@ describe('POST /sync', () => {
     const row = db.prepare('SELECT slugs_json FROM solved_sets WHERE lc_username = ?').get('alice') as
       | { slugs_json: string }
       | undefined;
-    expect(JSON.parse(row!.slugs_json).sort()).toEqual(['add-two-numbers', 'two-sum']);
+    expect(Object.keys(JSON.parse(row!.slugs_json)).sort()).toEqual(['add-two-numbers', 'two-sum']);
   });
 
   it('filters malformed slugs', async () => {
@@ -72,7 +72,7 @@ describe('POST /sync', () => {
     expect(r.status).toBe(200);
     const row = db.prepare('SELECT slugs_json FROM solved_sets WHERE lc_username = ?').get('alice') as
       | { slugs_json: string };
-    expect(JSON.parse(row.slugs_json).sort()).toEqual(['good-slug', 'two-sum']);
+    expect(Object.keys(JSON.parse(row.slugs_json)).sort()).toEqual(['good-slug', 'two-sum']);
   });
 
   it('rejects when uploaded count wildly exceeds public count', async () => {
@@ -116,7 +116,7 @@ describe('POST /sync with friend_sets (crowdsourced)', () => {
     const bob = db.prepare('SELECT slugs_json FROM solved_sets WHERE lc_username = ?').get('bob') as
       | { slugs_json: string }
       | undefined;
-    expect(JSON.parse(bob!.slugs_json).sort()).toEqual(['three-sum', 'two-sum']);
+    expect(Object.keys(JSON.parse(bob!.slugs_json)).sort()).toEqual(['three-sum', 'two-sum']);
   });
 
   it('unions crowdsourced uploads instead of overwriting', async () => {
@@ -131,7 +131,7 @@ describe('POST /sync with friend_sets (crowdsourced)', () => {
       .send({ slugs: ['a'], friend_sets: { bob: ['three-sum'] }, updated_at: 2, schema_version: 1 });
     const bob = db.prepare('SELECT slugs_json FROM solved_sets WHERE lc_username = ?').get('bob') as
       | { slugs_json: string };
-    expect(JSON.parse(bob.slugs_json).sort()).toEqual(['three-sum', 'two-sum']);
+    expect(Object.keys(JSON.parse(bob.slugs_json)).sort()).toEqual(['three-sum', 'two-sum']);
   });
 
   it('rejects bogus friend usernames', async () => {

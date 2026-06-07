@@ -20,12 +20,14 @@ function jwtHeader(username: string) {
 }
 
 function seedSolvedSet(username: string, slugs: string[], updated_at = Date.now()) {
+  const map: Record<string, Record<string, never>> = {};
+  for (const s of slugs) map[s] = {};
   db.prepare(
     `INSERT INTO solved_sets (lc_username, slugs_json, schema_version, updated_at, last_self_sync_at)
      VALUES (?, ?, ?, ?, ?)
      ON CONFLICT(lc_username) DO UPDATE SET slugs_json = excluded.slugs_json,
        updated_at = excluded.updated_at, last_self_sync_at = excluded.last_self_sync_at`
-  ).run(username, JSON.stringify(slugs), 1, updated_at, updated_at);
+  ).run(username, JSON.stringify(map), 2, updated_at, updated_at);
 }
 
 beforeEach(() => {
@@ -305,10 +307,10 @@ describe('DELETE /api/v1/users/me', () => {
     seedSolvedSet('bob', ['add-two-numbers']);
     db.prepare(
       `INSERT INTO contributions (target_username, contributor_username, slugs_json, updated_at) VALUES (?, ?, ?, ?)`
-    ).run('alice', 'bob', JSON.stringify(['two-sum']), Date.now());
+    ).run('alice', 'bob', JSON.stringify({ 'two-sum': {} }), Date.now());
     db.prepare(
       `INSERT INTO contributions (target_username, contributor_username, slugs_json, updated_at) VALUES (?, ?, ?, ?)`
-    ).run('bob', 'alice', JSON.stringify(['add-two-numbers']), Date.now());
+    ).run('bob', 'alice', JSON.stringify({ 'add-two-numbers': {} }), Date.now());
     db.prepare('INSERT INTO user_friends (lc_username, friend_username, added_at) VALUES (?, ?, ?)').run('alice', 'bob', Date.now());
     db.prepare('INSERT INTO user_friends (lc_username, friend_username, added_at) VALUES (?, ?, ?)').run('bob', 'alice', Date.now());
     db.prepare('INSERT INTO user_daily_goals (lc_username, goals_json, updated_at) VALUES (?, ?, ?)').run('alice', '{}', Date.now());

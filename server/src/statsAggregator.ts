@@ -1,4 +1,4 @@
-import { db } from './db';
+import { db, parseSlugsJson } from './db';
 
 export interface StatsPayload {
   users_total: number;
@@ -21,11 +21,10 @@ export function computeStatsNow(): StatsPayload {
   let solves_total = 0;
   const counts = new Map<string, number>();
   for (const row of rows) {
-    try {
-      const slugs = JSON.parse(row.slugs_json) as string[];
-      solves_total += slugs.length;
-      for (const slug of slugs) counts.set(slug, (counts.get(slug) ?? 0) + 1);
-    } catch {}
+    const map = parseSlugsJson(row.slugs_json);
+    const slugs = Object.keys(map);
+    solves_total += slugs.length;
+    for (const slug of slugs) counts.set(slug, (counts.get(slug) ?? 0) + 1);
   }
 
   const top_slugs = Array.from(counts.entries())

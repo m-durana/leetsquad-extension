@@ -27,14 +27,14 @@ function getUnion(username: string): string[] {
   const row = db.prepare('SELECT slugs_json FROM solved_sets WHERE lc_username = ?').get(username) as
     | { slugs_json: string }
     | undefined;
-  return row ? JSON.parse(row.slugs_json).sort() : [];
+  return row ? Object.keys(JSON.parse(row.slugs_json)).sort() : [];
 }
 
 function getContribution(target: string, contributor: string): string[] | null {
   const row = db
     .prepare('SELECT slugs_json FROM contributions WHERE target_username = ? AND contributor_username = ?')
     .get(target, contributor) as { slugs_json: string } | undefined;
-  return row ? JSON.parse(row.slugs_json).sort() : null;
+  return row ? Object.keys(JSON.parse(row.slugs_json)).sort() : null;
 }
 
 function contributorsCount(target: string): number {

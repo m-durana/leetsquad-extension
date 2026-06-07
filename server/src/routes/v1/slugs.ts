@@ -23,7 +23,7 @@ v1SlugsRouter.get('/:slug/count', optionalApiKey, (req: ApiKeyedRequest, res: Re
     const row = db
       .prepare(
         `SELECT COUNT(*) AS c FROM solved_sets
-         WHERE EXISTS (SELECT 1 FROM json_each(slugs_json) WHERE value = ?)`
+         WHERE EXISTS (SELECT 1 FROM json_each(slugs_json) WHERE key = ?)`
       )
       .get(slug) as { c: number };
 
@@ -47,7 +47,7 @@ v1SlugsRouter.get('/:slug/solvers', requireApiKey, (req: ApiKeyedRequest, res: R
     const rows = db
       .prepare(
         `SELECT lc_username AS username, updated_at FROM solved_sets
-         WHERE EXISTS (SELECT 1 FROM json_each(slugs_json) WHERE value = ?)
+         WHERE EXISTS (SELECT 1 FROM json_each(slugs_json) WHERE key = ?)
            AND lc_username > ?
          ORDER BY lc_username ASC
          LIMIT ?`

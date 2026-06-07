@@ -1,5 +1,5 @@
 import { Router, Response, NextFunction } from 'express';
-import { stmts, db } from '../../db';
+import { stmts, db, parseSlugsJson } from '../../db';
 import { isValidUsername, clampLimit, encodeCursor, decodeCursor } from '../../validation';
 import { ApiError } from '../../errorEnvelope';
 import { requireApiKey, ApiKeyedRequest, optionalApiKey } from '../../apiKeyMiddleware';
@@ -63,10 +63,7 @@ v1UsersRouter.get('/', requireApiKey, (req: ApiKeyedRequest, res: Response, next
           .all(limit)) as Array<{ username: string; updated_at: number; slugs_json: string }>;
 
     const users = rows.map((r) => {
-      let solved_count = 0;
-      try {
-        solved_count = (JSON.parse(r.slugs_json) as string[]).length;
-      } catch {}
+      const solved_count = Object.keys(parseSlugsJson(r.slugs_json)).length;
       return { username: r.username, solved_count, updated_at: r.updated_at };
     });
 
@@ -96,10 +93,7 @@ v1UsersRouter.get('/:username/count', optionalApiKey, (req: ApiKeyedRequest, res
 
     if (!row) throw new ApiError('not_found', 'user is not published');
 
-    let solved_count = 0;
-    try {
-      solved_count = (JSON.parse(row.slugs_json) as string[]).length;
-    } catch {}
+    const solved_count = Object.keys(parseSlugsJson(row.slugs_json)).length;
 
     res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600');
     res.json({ username, solved_count, updated_at: row.updated_at });
@@ -118,12 +112,8 @@ v1UsersRouter.get('/:username', optionalApiKey, (req: ApiKeyedRequest, res: Resp
       | undefined;
     if (!row) throw new ApiError('not_found', 'user is not published');
 
-    let slugs: string[];
-    try {
-      slugs = JSON.parse(row.slugs_json) as string[];
-    } catch {
-      throw new ApiError('internal', 'corrupt record');
-    }
+    const map = parseSlugsJson(row.slugs_json);
+    const slugs = Object.keys(map);
 
     const cc = stmts.countContributorsForTarget.get(username) as { c: number };
 
@@ -131,6 +121,7 @@ v1UsersRouter.get('/:username', optionalApiKey, (req: ApiKeyedRequest, res: Resp
     res.json({
       username,
       solved_slugs: slugs,
+      solved_slug_details: map,
       solved_count: slugs.length,
       contributors_count: cc.c,
       updated_at: row.updated_at,

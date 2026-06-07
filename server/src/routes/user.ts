@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { stmts, db } from '../db';
+import { stmts, db, parseSlugsJson, serializeSlugMap, unionSlugMaps } from '../db';
 import { isValidUsername } from '../nonce';
 import { requireAuth, AuthedRequest } from '../authMiddleware';
 
@@ -14,18 +14,15 @@ userRouter.get('/:username', (req: Request, res: Response) => {
     | undefined;
   if (!row) return res.status(404).json({ error: 'not_found' });
 
-  let slugs: string[];
-  try {
-    slugs = JSON.parse(row.slugs_json);
-  } catch {
-    return res.status(500).json({ error: 'corrupt_record' });
-  }
+  const map = parseSlugsJson(row.slugs_json);
+  const slugs = Object.keys(map);
 
   const cc = stmts.countContributorsForTarget.get(username) as { c: number };
 
   res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=60');
   res.json({
     slugs,
+    solved_slug_details: map,
     updated_at: row.updated_at,
     schema_version: row.schema_version,
     contributors_count: cc.c,
@@ -56,17 +53,14 @@ userRouter.delete('/:username', requireAuth, (req: AuthedRequest, res: Response)
       const rows = stmts.getContributionsForTarget.all(target) as Array<{
         contributor_username: string;
         slugs_json: string;
+        updated_at: number;
       }>;
-      const union = new Set<string>();
-      for (const row of rows) {
-        try {
-          for (const s of JSON.parse(row.slugs_json) as string[]) union.add(s);
-        } catch {}
-      }
-      if (union.size === 0) {
+      const sorted = rows.slice().sort((a, b) => a.updated_at - b.updated_at);
+      const union = unionSlugMaps(sorted.map((r) => parseSlugsJson(r.slugs_json)));
+      if (Object.keys(union).length === 0) {
         stmts.deleteSolvedSet.run(target);
       } else {
-        stmts.upsertCrowdsourcedSet.run(target, JSON.stringify(Array.from(union)), 1, Date.now());
+        stmts.upsertCrowdsourcedSet.run(target, serializeSlugMap(union), 2, Date.now());
       }
     }
   });
