@@ -715,6 +715,68 @@ describe('LeetCodeAPI.hasUserSolvedProblemGraphQL', () => {
 });
 
 // ============================================================
+// getMyProgressQuestionList
+// ============================================================
+describe('LeetCodeAPI.getMyProgressQuestionList', () => {
+  test('paginates and returns slug + lastSubmittedAt + questionStatus', async () => {
+    fetch.mockResolvedValueOnce(mockGraphQL({
+      userProgressQuestionList: {
+        totalNum: 2,
+        questions: [
+          { titleSlug: 'two-sum', lastSubmittedAt: 1700000000, numSubmitted: 3, questionStatus: 'SOLVED', lastResult: 'AC' },
+          { titleSlug: 'three-sum', lastSubmittedAt: 1700001000, numSubmitted: 1, questionStatus: 'SOLVED', lastResult: 'AC' },
+        ],
+      },
+    }));
+    const out = await LeetCodeAPI.getMyProgressQuestionList();
+    expect(out).toEqual([
+      { titleSlug: 'two-sum', lastSubmittedAt: 1700000000, numSubmitted: 3, questionStatus: 'SOLVED' },
+      { titleSlug: 'three-sum', lastSubmittedAt: 1700001000, numSubmitted: 1, questionStatus: 'SOLVED' },
+    ]);
+  });
+
+  test('stops when an empty page is returned', async () => {
+    fetch.mockResolvedValueOnce(mockGraphQL({
+      userProgressQuestionList: { totalNum: 0, questions: [] },
+    }));
+    const out = await LeetCodeAPI.getMyProgressQuestionList();
+    expect(out).toEqual([]);
+  });
+});
+
+// ============================================================
+// getMyAcSubmissionsForSlug
+// ============================================================
+describe('LeetCodeAPI.getMyAcSubmissionsForSlug', () => {
+  test('returns only Accepted submissions with rich metadata', async () => {
+    fetch.mockResolvedValueOnce(mockGraphQL({
+      questionSubmissionList: {
+        lastKey: null,
+        hasNext: false,
+        submissions: [
+          { id: '111', titleSlug: 'two-sum', status: 10, statusDisplay: 'Accepted', lang: 'java', runtime: '6 ms', memory: '50.3 MB', timestamp: '1768320958' },
+          { id: '222', titleSlug: 'two-sum', status: 20, statusDisplay: 'Compile Error', lang: 'java', runtime: 'N/A', memory: 'N/A', timestamp: '1768320664' },
+          { id: '333', titleSlug: 'two-sum', status: 10, statusDisplay: 'Accepted', lang: 'cpp', runtime: '4 ms', memory: '47.3 MB', timestamp: '1736354362' },
+        ],
+      },
+    }));
+    const out = await LeetCodeAPI.getMyAcSubmissionsForSlug('two-sum');
+    expect(out).toEqual([
+      { id: '111', titleSlug: 'two-sum', lang: 'java', runtime: '6 ms', memory: '50.3 MB', timestamp: 1768320958 },
+      { id: '333', titleSlug: 'two-sum', lang: 'cpp', runtime: '4 ms', memory: '47.3 MB', timestamp: 1736354362 },
+    ]);
+  });
+
+  test('returns empty array on no submissions', async () => {
+    fetch.mockResolvedValueOnce(mockGraphQL({
+      questionSubmissionList: { lastKey: null, hasNext: false, submissions: [] },
+    }));
+    const out = await LeetCodeAPI.getMyAcSubmissionsForSlug('never-solved');
+    expect(out).toEqual([]);
+  });
+});
+
+// ============================================================
 // getEnhancedUserData
 // ============================================================
 describe('LeetCodeAPI.getEnhancedUserData', () => {

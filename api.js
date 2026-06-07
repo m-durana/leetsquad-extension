@@ -238,6 +238,107 @@ const LeetCodeAPI = {
     return slugs;
   },
 
+  // Owner-only. Paginates every question the user has interacted with, with
+  // last-submitted timestamp + question status. Powers /progress/ on LC.
+  // Returns [{ titleSlug, lastSubmittedAt (sec), numSubmitted, questionStatus }].
+  async getMyProgressQuestionList(opts = {}) {
+    const query = `
+      query userProgressQuestionList($filters: UserProgressQuestionListInput) {
+        userProgressQuestionList(filters: $filters) {
+          totalNum
+          questions {
+            titleSlug
+            lastSubmittedAt
+            numSubmitted
+            questionStatus
+            lastResult
+          }
+        }
+      }
+    `;
+    const LIMIT = opts.limit || 50;
+    const MAX_PAGES = opts.maxPages || 80;
+    const out = [];
+    let skip = 0;
+
+    for (let page = 0; page < MAX_PAGES; page++) {
+      let data;
+      try {
+        data = await this.graphqlQuery(query, { filters: { skip, limit: LIMIT } });
+      } catch (e) {
+        break;
+      }
+      const result = data?.userProgressQuestionList;
+      if (!result || !Array.isArray(result.questions) || result.questions.length === 0) break;
+      for (const q of result.questions) {
+        if (!q?.titleSlug) continue;
+        out.push({
+          titleSlug: q.titleSlug,
+          lastSubmittedAt: +q.lastSubmittedAt || 0,
+          numSubmitted: q.numSubmitted || 0,
+          questionStatus: q.questionStatus || null,
+        });
+      }
+      skip += LIMIT;
+      if (typeof result.totalNum === 'number' && skip >= result.totalNum) break;
+    }
+    return out;
+  },
+
+  // Owner-only. Returns the user's submissions for one question with full
+  // metadata. Used to backfill rich {id, lang, rt, mem} into the self solved
+  // set. Filter to AC (status === 10) for "solved" records.
+  async getMyAcSubmissionsForSlug(questionSlug, opts = {}) {
+    const query = `
+      query submissionList($offset: Int!, $limit: Int!, $lastKey: String, $questionSlug: String!) {
+        questionSubmissionList(offset: $offset, limit: $limit, lastKey: $lastKey, questionSlug: $questionSlug) {
+          lastKey
+          hasNext
+          submissions {
+            id
+            titleSlug
+            status
+            statusDisplay
+            lang
+            runtime
+            memory
+            timestamp
+          }
+        }
+      }
+    `;
+    const LIMIT = opts.limit || 20;
+    const out = [];
+    let offset = 0;
+    let lastKey = null;
+    for (let page = 0; page < (opts.maxPages || 5); page++) {
+      let data;
+      try {
+        data = await this.graphqlQuery(query, { offset, limit: LIMIT, lastKey, questionSlug });
+      } catch (e) {
+        break;
+      }
+      const result = data?.questionSubmissionList;
+      if (!result || !Array.isArray(result.submissions)) break;
+      for (const s of result.submissions) {
+        if (s?.statusDisplay === 'Accepted' || s?.status === 10) {
+          out.push({
+            id: String(s.id),
+            titleSlug: s.titleSlug,
+            lang: s.lang,
+            runtime: s.runtime,
+            memory: s.memory,
+            timestamp: +s.timestamp || 0,
+          });
+        }
+      }
+      if (!result.hasNext) break;
+      lastKey = result.lastKey || null;
+      offset += LIMIT;
+    }
+    return out;
+  },
+
   // ============= Solutions-Feed Scrape (public, arbitrary user) =============
 
   // Public solution articles per user. Lower-bound proof-of-solved.
@@ -810,7 +911,6 @@ const LeetCodeAPI = {
           memory
           memoryDisplay
           memoryPercentile
-          code
           timestamp
           statusCode
           lang {

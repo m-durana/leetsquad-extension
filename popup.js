@@ -394,20 +394,65 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Daily full self-import (auth-only path).
+  // Step 1: progress list gives every slug + lastSubmittedAt in one paginated query.
+  // Step 2: throttled backfill fetches questionSubmissionList per slug that's
+  // still missing rich metadata (id, lang, rt, mem). Runs ~1 req/sec to avoid bans.
   const SELF_IMPORT_KEY = 'leetsquad_self_import_at';
+  const SELF_BACKFILL_KEY = 'leetsquad_self_backfill_cursor';
+  const RICH_BACKFILL_BATCH = 20;
+
   async function maybeSelfImport(myUsername) {
     if (!myUsername) return;
     const last = (await StorageManager.get(SELF_IMPORT_KEY)) || 0;
-    if (Date.now() - last < 24 * 60 * 60 * 1000) return;
-    try {
-      const slugs = await LeetCodeAPI.getMySolvedSlugs();
-      if (slugs.length === 0) return;
-      await StorageManager.mergeSolvedSlugs(
-        myUsername,
-        slugs.map(s => ({ titleSlug: s, timestamp: 0 }))
-      );
-      await StorageManager.set(SELF_IMPORT_KEY, Date.now());
-    } catch (e) {}
+    const stale = Date.now() - last >= 24 * 60 * 60 * 1000;
+    if (stale) {
+      try {
+        const progress = await LeetCodeAPI.getMyProgressQuestionList();
+        const acRows = progress.filter(p => p.questionStatus === 'SOLVED' || p.lastSubmittedAt > 0);
+        if (acRows.length > 0) {
+          await StorageManager.mergeSolvedSlugs(
+            myUsername,
+            acRows.map(p => ({ titleSlug: p.titleSlug, timestamp: p.lastSubmittedAt || 0 }))
+          );
+        }
+        await StorageManager.set(SELF_IMPORT_KEY, Date.now());
+      } catch (e) {}
+    }
+    backfillSelfRichMetadata(myUsername).catch(() => {});
+  }
+
+  // Runs once per popup open. Walks slugs missing rich metadata and fetches a
+  // bounded batch from questionSubmissionList; the rest accretes on next opens.
+  async function backfillSelfRichMetadata(myUsername) {
+    const set = await StorageManager.getSolvedSet(myUsername);
+    const slugs = Object.keys(set.slugs || {});
+    if (slugs.length === 0) return;
+    const meta = set.submissionMeta || {};
+    const ids = set.submissionIds || {};
+    const cursor = (await StorageManager.get(SELF_BACKFILL_KEY)) || 0;
+    const ordered = slugs.slice(cursor).concat(slugs.slice(0, cursor));
+    const todo = ordered.filter(s => !ids[s] || !meta[s]);
+    const batch = todo.slice(0, RICH_BACKFILL_BATCH);
+    for (const slug of batch) {
+      try {
+        const subs = await LeetCodeAPI.getMyAcSubmissionsForSlug(slug, { limit: 5, maxPages: 1 });
+        if (subs.length === 0) continue;
+        subs.sort((a, b) => b.timestamp - a.timestamp);
+        const best = subs[0];
+        await StorageManager.mergeSolvedSlugs(myUsername, [{
+          titleSlug: slug,
+          timestamp: best.timestamp,
+          id: best.id,
+          lang: best.lang,
+          rt: best.runtime,
+          mem: best.memory,
+        }]);
+      } catch (e) {}
+      await new Promise(r => setTimeout(r, 1000));
+    }
+    const lastSlug = batch[batch.length - 1];
+    const newCursor = lastSlug ? (slugs.indexOf(lastSlug) + 1) % slugs.length : cursor;
+    await StorageManager.set(SELF_BACKFILL_KEY, newCursor);
   }
 
   detectMyUsernameBtn?.addEventListener('click', () => detectMyUsername());
@@ -2158,6 +2203,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       return (a.title || '').localeCompare(b.title || '');
     });
 
+    const [mySolvedSet, friendSolvedSet] = await Promise.all([
+      StorageManager.getSolvedSet(myUsername),
+      StorageManager.getSolvedSet(friendUsername),
+    ]);
+    const mySlugTs = mySolvedSet?.slugs || {};
+    const friendSlugTs = friendSolvedSet?.slugs || {};
+
     // Render common problems (limit to first 50 for performance)
     const displayProblems = commonProblems.slice(0, 50);
 
@@ -2181,8 +2233,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       const safeTitle = escapeHtml(problem.title || problem.titleSlug || '');
       const safeDiff = escapeHtml(problem.difficulty || '');
       const diffClass = (problem.difficulty || '').toLowerCase();
-      const myRt = escapeHtml(myData?.runtime || '-');
-      const friendRt = escapeHtml(friendData?.runtime || '-');
+      const myTs = mySlugTs[problem.titleSlug];
+      const friendTs = friendSlugTs[problem.titleSlug];
+      const myRt = escapeHtml(myData?.runtime || (myTs ? LeetSquadUtils.timeAgo(myTs) : '-'));
+      const friendRt = escapeHtml(friendData?.runtime || (friendTs ? LeetSquadUtils.timeAgo(friendTs) : '-'));
       const slugHref = `https://leetcode.com/problems/${encodeURIComponent(problem.titleSlug || '')}`;
       return `
         <div class="mutuals-problem">
