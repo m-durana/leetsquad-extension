@@ -4,7 +4,7 @@
   "description": "Chrome extension to track friends' LeetCode progress and compete on leaderboards",
   "private": true,
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "scripts": {
     "test": "jest --verbose",

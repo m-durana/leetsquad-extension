@@ -9,10 +9,14 @@ const _SHARED_TTL = (typeof LeetSquadUtils !== 'undefined' && LeetSquadUtils?.CA
   || (typeof window !== 'undefined' && window.LeetSquadUtils?.CACHE_TTL_MS)
   || 10 * 60 * 1000;
 
+// Under Jest (NODE_ENV=test) skip real backoff waits so retry tests don't idle
+// for seconds each; production (no process/NODE_ENV) keeps the 1s base delay.
+const _IS_TEST_ENV = typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test';
+
 const API_CONFIG = {
   maxConcurrent: 3,         // max parallel network requests
   maxRetries: 3,            // retry count on failure
-  retryDelay: 1000,         // initial retry delay (ms)
+  retryDelay: _IS_TEST_ENV ? 0 : 1000, // initial retry delay (ms)
   retryMultiplier: 2,       // exponential backoff multiplier
   timeout: 15000,           // per-request timeout (ms)
   cacheTTL: _SHARED_TTL,    // unified in shared.js (LEETSQUAD_CACHE_TTL_MS)

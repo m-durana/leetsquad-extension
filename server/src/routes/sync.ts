@@ -13,6 +13,7 @@ import {
 } from '../db';
 import { requireAuth, AuthedRequest } from '../authMiddleware';
 import { getCachedPublicSolvedCount } from '../publicCount';
+import { canonicalUsername } from '../validation';
 
 export const syncRouter = Router();
 
@@ -169,7 +170,7 @@ syncRouter.post('/', syncLimiter, requireAuth, async (req: AuthedRequest, res: R
     if (!USERNAME_RE.test(u)) {
       return res.status(400).json({ error: 'invalid_friend_username', username: u });
     }
-    if (u.toLowerCase() === me.toLowerCase()) {
+    if (canonicalUsername(u) === me) {
       return res.status(400).json({ error: 'friend_collides_with_self' });
     }
   }
@@ -190,7 +191,8 @@ syncRouter.post('/', syncLimiter, requireAuth, async (req: AuthedRequest, res: R
   const friendsAccepted: Record<string, number> = {};
   const friendsRejected: Record<string, string> = {};
   for (const [username, friendSlugs] of friendEntries) {
-    const r = await applyContribution(username, me, friendSlugs, {
+    const target = canonicalUsername(username);
+    const r = await applyContribution(target, me, friendSlugs, {
       isSelf: false,
       schemaVersion: schema_version,
       updatedAt: updated_at,

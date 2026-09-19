@@ -12,13 +12,21 @@
   ],
   "host_permissions": [
     "https://leetcode.com/*",
-    "https://leetsquad.miro.build/*",
-    "http://localhost:8787/*"
+    "https://leetsquad.miro.build/*"
   ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
+    {
+      "matches": ["https://leetcode.com/problems/*"],
+      "js": ["submission-interceptor.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
     {
       "matches": ["https://leetcode.com/problems/*"],
       "css": ["styles/content.css"],

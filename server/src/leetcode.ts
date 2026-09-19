@@ -1,4 +1,21 @@
 const LEETCODE_GRAPHQL = 'https://leetcode.com/graphql/';
+const FETCH_TIMEOUT_MS = 10_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// fetch with an abort-based timeout so a hung LeetCode connection can't block
+// request-handling threads indefinitely.
+async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 const SKILL_TAGS_QUERY = `
   query userPublicProfile($username: String!) {
@@ -20,7 +37,7 @@ const TOTAL_SOLVED_QUERY = `
 `;
 
 export async function getPublicSolvedCount(username: string): Promise<number | null> {
-  const res = await fetch(LEETCODE_GRAPHQL, {
+  const res = await fetchWithTimeout(LEETCODE_GRAPHQL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -41,6 +58,12 @@ export async function getPublicSolvedCount(username: string): Promise<number | n
   if (!user) return null;
   const all = user.submitStatsGlobal?.acSubmissionNum?.find((s) => s.difficulty === 'All');
   return all?.count ?? 0;
+}
+
+function throwOnGraphqlErrors(json: { errors?: unknown }): void {
+  if (Array.isArray(json.errors) && json.errors.length > 0) {
+    throw new Error(`LeetCode GraphQL errors: ${JSON.stringify(json.errors)}`);
+  }
 }
 
 const PROBLEMSET_QUERY = `
@@ -76,7 +99,8 @@ export async function fetchProblemCatalog(): Promise<CatalogProblem[]> {
   let skip = 0;
   let total = Infinity;
   while (skip < total) {
-    const res = await fetch(LEETCODE_GRAPHQL, {
+    if (skip > 0) await sleep(250); // be polite to LeetCode between pages
+    const res = await fetchWithTimeout(LEETCODE_GRAPHQL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -104,7 +128,9 @@ export async function fetchProblemCatalog(): Promise<CatalogProblem[]> {
           }>;
         } | null;
       };
+      errors?: unknown;
     };
+    throwOnGraphqlErrors(json);
     const r = json.data?.problemsetQuestionList;
     if (!r || !Array.isArray(r.questions)) break;
     if (typeof r.totalNum === 'number') total = r.totalNum;
@@ -126,7 +152,7 @@ export async function fetchProblemCatalog(): Promise<CatalogProblem[]> {
 }
 
 export async function getPublicSkillTags(username: string): Promise<string[] | null> {
-  const res = await fetch(LEETCODE_GRAPHQL, {
+  const res = await fetchWithTimeout(LEETCODE_GRAPHQL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -143,7 +169,9 @@ export async function getPublicSkillTags(username: string): Promise<string[] | n
   if (!res.ok) throw new Error(`LeetCode GraphQL HTTP ${res.status}`);
   const json = (await res.json()) as {
     data?: { matchedUser?: { profile?: { skillTags?: string[] | null } | null } | null };
+    errors?: unknown;
   };
+  throwOnGraphqlErrors(json);
   const user = json.data?.matchedUser;
   if (!user) return null;
   return user.profile?.skillTags ?? [];

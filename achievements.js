@@ -136,8 +136,19 @@
     let difficultyCounts = { Easy: 0, Medium: 0, Hard: 0 };
     if (myUsername) {
       const entry = cache[`${myUsername}:full`] || cache[myUsername];
-      if (entry && entry.profile?.submitStatsGlobal?.acSubmissionNum) {
-        for (const row of entry.profile.submitStatsGlobal.acSubmissionNum) {
+      // The cache stores flattened per-difficulty counts under `solved`
+      // (see warmProfileCache / getFullUserData); fall back to raw acSubmissionNum arrays.
+      const solved = entry?.solved;
+      const acStats = entry?.profile?.submitStatsGlobal?.acSubmissionNum
+        || entry?.profile?.submitStats?.acSubmissionNum;
+      if (solved) {
+        difficultyCounts = {
+          Easy: solved.easySolved || 0,
+          Medium: solved.mediumSolved || 0,
+          Hard: solved.hardSolved || 0,
+        };
+      } else if (acStats) {
+        for (const row of acStats) {
           if (row.difficulty in difficultyCounts) difficultyCounts[row.difficulty] = row.count;
         }
       }

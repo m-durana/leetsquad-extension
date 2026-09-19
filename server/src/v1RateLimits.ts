@@ -2,6 +2,7 @@ import { Request, Response, NextFunction, RequestHandler } from 'express';
 import rateLimit, { Options } from 'express-rate-limit';
 import { ApiKeyedRequest } from './apiKeyMiddleware';
 import { ApiError } from './errorEnvelope';
+import { verifyToken } from './jwt';
 
 const disabled = process.env.NODE_ENV === 'test' || process.env.DISABLE_RATE_LIMITS === '1';
 
@@ -65,8 +66,17 @@ export function fixedLimiter(opts: {
     legacyHeaders: false,
     keyGenerator: (req) => {
       if (opts.by === 'jwt') {
-        const auth = req.header('authorization') || '';
-        return `${opts.bucket}:jwt:${auth.slice(-32)}`;
+        // Key on the verified subject so rotating bearer values can't mint fresh
+        // buckets; fall back to IP for missing/invalid tokens.
+        const m = /^Bearer (.+)$/.exec(req.header('authorization') || '');
+        if (m) {
+          try {
+            return `${opts.bucket}:jwt:${verifyToken(m[1]).lc_username}`;
+          } catch {
+            /* fall through to IP */
+          }
+        }
+        return `${opts.bucket}:ip:${req.ip}`;
       }
       return `${opts.bucket}:ip:${req.ip}`;
     },

@@ -1,7 +1,18 @@
 require('./setup');
+const fs = require('fs');
+const path = require('path');
 
 // Load shared utilities (content.js now depends on LeetSquadUtils)
 require('../shared');
+
+// content.js is an IIFE that can't be required directly (it runs on load and
+// depends on the live DOM/chrome). Extract the real getProblemSlug source so we
+// test the shipped implementation rather than a re-typed copy of it.
+const contentSrc = fs.readFileSync(path.join(__dirname, '..', 'content.js'), 'utf8');
+const getProblemSlugMatch = contentSrc.match(/function getProblemSlug\(\)\s*\{[\s\S]*?\n {2}\}/);
+if (!getProblemSlugMatch) throw new Error('could not extract getProblemSlug from content.js');
+// eslint-disable-next-line no-eval
+const getProblemSlug = eval(`(${getProblemSlugMatch[0]})`);
 
 // Content.js is an IIFE that runs immediately. We test its helper functions
 // by extracting the logic into testable units. Since content.js uses global
@@ -43,11 +54,6 @@ beforeEach(() => {
 // getProblemSlug (extracted logic)
 // ============================================================
 describe('Content: getProblemSlug logic', () => {
-  function getProblemSlug() {
-    const match = window.location.pathname.match(/\/problems\/([^/]+)/);
-    return match ? match[1] : null;
-  }
-
   test('extracts slug from /problems/two-sum/', () => {
     window.location.pathname = '/problems/two-sum/';
     expect(getProblemSlug()).toBe('two-sum');
@@ -73,14 +79,8 @@ describe('Content: getProblemSlug logic', () => {
 // timeAgo (extracted logic)
 // ============================================================
 describe('Content: timeAgo logic', () => {
-  function timeAgo(timestamp) {
-    const seconds = Math.floor((Date.now() - timestamp * 1000) / 1000);
-    if (seconds < 60) return 'just now';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-    return `${Math.floor(seconds / 604800)}w ago`;
-  }
+  // content.js aliases these directly off LeetSquadUtils, so assert the real impl.
+  const timeAgo = LeetSquadUtils.timeAgo;
 
   test('shows "just now" for < 60 seconds', () => {
     const now = Math.floor(Date.now() / 1000);
@@ -112,17 +112,7 @@ describe('Content: timeAgo logic', () => {
 // formatLanguage (extracted logic)
 // ============================================================
 describe('Content: formatLanguage logic', () => {
-  function formatLanguage(lang) {
-    const langMap = {
-      'cpp': 'C++', 'java': 'Java', 'python': 'Python', 'python3': 'Python',
-      'c': 'C', 'csharp': 'C#', 'javascript': 'JavaScript', 'typescript': 'TypeScript',
-      'php': 'PHP', 'swift': 'Swift', 'kotlin': 'Kotlin', 'dart': 'Dart',
-      'go': 'Go', 'ruby': 'Ruby', 'scala': 'Scala', 'rust': 'Rust',
-      'racket': 'Racket', 'erlang': 'Erlang', 'elixir': 'Elixir',
-      'mysql': 'MySQL', 'mssql': 'MS SQL', 'oraclesql': 'Oracle SQL',
-    };
-    return langMap[lang?.toLowerCase()] || lang || 'N/A';
-  }
+  const formatLanguage = LeetSquadUtils.formatLanguage;
 
   test('maps known languages correctly', () => {
     expect(formatLanguage('cpp')).toBe('C++');
@@ -154,15 +144,7 @@ describe('Content: formatLanguage logic', () => {
 // getAvatarGradient (extracted logic)
 // ============================================================
 describe('Content: getAvatarGradient logic', () => {
-  function getAvatarGradient(username) {
-    const colors = [
-      ['#e94560', '#a855f7'], ['#a855f7', '#3b82f6'], ['#3b82f6', '#06b6d4'],
-      ['#06b6d4', '#10b981'], ['#10b981', '#f59e0b'], ['#f59e0b', '#e94560'],
-    ];
-    const hash = username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const pair = colors[hash % colors.length];
-    return `linear-gradient(135deg, ${pair[0]}, ${pair[1]})`;
-  }
+  const getAvatarGradient = LeetSquadUtils.getAvatarGradient;
 
   test('returns a linear-gradient string', () => {
     const result = getAvatarGradient('testuser');

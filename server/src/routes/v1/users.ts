@@ -1,6 +1,6 @@
 import { Router, Response, NextFunction } from 'express';
 import { stmts, db, parseSlugsJson } from '../../db';
-import { isValidUsername, clampLimit, encodeCursor, decodeCursor } from '../../validation';
+import { isValidUsername, canonicalUsername, clampLimit, encodeCursor, decodeCursor } from '../../validation';
 import { ApiError } from '../../errorEnvelope';
 import { requireApiKey, ApiKeyedRequest, optionalApiKey } from '../../apiKeyMiddleware';
 import { requireAuth, AuthedRequest } from '../../authMiddleware';
@@ -84,8 +84,8 @@ v1UsersRouter.get('/', requireApiKey, (req: ApiKeyedRequest, res: Response, next
 
 v1UsersRouter.get('/:username/count', optionalApiKey, (req: ApiKeyedRequest, res: Response, next: NextFunction) => {
   try {
-    const username = req.params.username;
-    if (!isValidUsername(username)) throw new ApiError('invalid_username', 'malformed username');
+    if (!isValidUsername(req.params.username)) throw new ApiError('invalid_username', 'malformed username');
+    const username = canonicalUsername(req.params.username);
 
     const row = stmts.getSolvedSet.get(username) as
       | { slugs_json: string; updated_at: number }
@@ -104,8 +104,8 @@ v1UsersRouter.get('/:username/count', optionalApiKey, (req: ApiKeyedRequest, res
 
 v1UsersRouter.get('/:username', optionalApiKey, (req: ApiKeyedRequest, res: Response, next: NextFunction) => {
   try {
-    const username = req.params.username;
-    if (!isValidUsername(username)) throw new ApiError('invalid_username', 'malformed username');
+    if (!isValidUsername(req.params.username)) throw new ApiError('invalid_username', 'malformed username');
+    const username = canonicalUsername(req.params.username);
 
     const row = stmts.getSolvedSet.get(username) as
       | { slugs_json: string; schema_version: number; updated_at: number }

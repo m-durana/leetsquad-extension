@@ -101,6 +101,18 @@ const LeetSquadUtils = {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
+  },
+
+  // Only allow https avatar URLs from remote profile data; anything else
+  // (data:, http:, off-scheme beacons) is dropped so callers fall back to the
+  // gradient placeholder.
+  safeAvatarUrl(url) {
+    if (!url) return '';
+    try {
+      return new URL(url).protocol === 'https:' ? url : '';
+    } catch (_) {
+      return '';
+    }
   }
 };
 

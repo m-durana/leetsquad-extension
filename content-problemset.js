@@ -6,6 +6,7 @@
   const MAX_AVATARS = 3;
 
   const escape = (s) => (window.LeetSquadUtils?.escapeHtml || ((x) => x))(s ?? '');
+  const safeAvatar = (u) => (window.LeetSquadUtils?.safeAvatarUrl || (() => ''))(u);
   const gradientFor = (u) => (window.LeetSquadUtils?.getAvatarGradient || (() => '#444'))(u);
   const timeAgo = (sec) => (window.LeetSquadUtils?.timeAgo || (() => ''))(sec);
 
@@ -32,10 +33,12 @@
       if (!set?.slugs) continue;
 
       const profileEntry = cacheRaw[`${friend}:full`] || cacheRaw[friend];
-      const avatarUrl = profileEntry?.profile?.avatar
+      const avatarUrl = safeAvatar(
+        profileEntry?.profile?.avatar
         || profileEntry?.profile?.userAvatar
         || profileEntry?.avatar
-        || null;
+        || null
+      );
 
       const ids = set.submissionIds || {};
       for (const slug in set.slugs) {

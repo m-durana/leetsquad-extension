@@ -59,7 +59,7 @@
       : `https://leetcode.com/problems/${encodeURIComponent(problemSlug)}/submissions/?envType=recent-ac&envId=${encodeURIComponent(problemSlug)}`;
 
     const safeName = escapeHtml(username || '');
-    const safeAvatar = avatar ? escapeHtml(avatar) : '';
+    const safeAvatar = escapeHtml(LeetSquadUtils.safeAvatarUrl(avatar));
     const initial = escapeHtml(username?.[0]?.toUpperCase() || 'U');
     const safeLang = submission ? escapeHtml(formatLanguage(submission.lang)) : '';
     const safeRuntime = runtime ? escapeHtml(String(runtime)) : '';
@@ -71,7 +71,7 @@
     return `
       <a href="${submissionLink}" target="_blank" class="leetsquad-friend solved ${isMe ? 'is-me' : ''}" title="View ${safeName}'s solution">
         <div class="friend-avatar">
-          ${avatar ?
+          ${safeAvatar ?
             `<img src="${safeAvatar}" alt="${safeName}"/>` :
             `<div class="avatar-placeholder" style="background: ${gradient}">${initial}</div>`
           }
@@ -661,6 +661,53 @@
   // back to body if LeetCode's container layout changes.
   let lastReportedSlug = null;
 
+  // Single report path for both signals: the MAIN-world interceptor (rich data,
+  // preferred) and the DOM-observer fallback (slug only). Debounced once per
+  // slug per page load; reset on SPA navigation. Only our own logged-in
+  // submissions ever reach here.
+  async function reportSolved(problemSlug, rich) {
+    if (!problemSlug) return;
+    const key = `${problemSlug}:${location.href}`;
+    if (lastReportedSlug === key) return;
+    lastReportedSlug = key;
+
+    chrome.runtime.sendMessage({
+      action: 'problemSolved',
+      problemSlug: problemSlug,
+      difficulty: detectProblemDifficulty()
+    });
+
+    // Merge rich {id, lang, rt, mem, ts} from our own submission straight into
+    // our own solved set so the widget reflects it now instead of waiting for
+    // the next recentAcSubmissionList alarm.
+    if (rich && (rich.id || rich.lang || rich.runtime || rich.memory)) {
+      try {
+        const myUsername = await StorageManager.getMyUsername();
+        if (myUsername) {
+          await StorageManager.mergeSolvedSlugs(myUsername, [{
+            titleSlug: problemSlug,
+            timestamp: rich.timestamp || Math.floor(Date.now() / 1000),
+            id: rich.id || undefined,
+            lang: rich.lang || undefined,
+            rt: rich.runtime || undefined,
+            mem: rich.memory || undefined,
+          }]);
+        }
+      } catch (e) { /* non-fatal: daily-goal report already sent */ }
+    }
+  }
+
+  // MAIN-world interceptor relays accepted submissions here. Trust only
+  // same-window messages carrying our tag.
+  window.addEventListener('message', (event) => {
+    if (event.source !== window) return;
+    const d = event.data;
+    if (!d || d.source !== 'leetsquad-interceptor' || d.type !== 'submissionAccepted') return;
+    if (!isExtensionContextValid()) { disconnectObservers(); return; }
+    const p = d.payload || {};
+    reportSolved(p.slug || getProblemSlug(), p);
+  });
+
   function monitorSubmissions() {
     if (submissionObserver) submissionObserver.disconnect();
 
@@ -672,19 +719,9 @@
       const successElement = document.querySelector('[data-e2e-locator="submission-result"]');
       if (!successElement || !successElement.textContent.includes('Accepted')) return;
 
-      const problemSlug = getProblemSlug();
-      if (!problemSlug) return;
-
-      // Debounce: only report once per slug per page load
-      const key = `${problemSlug}:${location.href}`;
-      if (lastReportedSlug === key) return;
-      lastReportedSlug = key;
-
-      chrome.runtime.sendMessage({
-        action: 'problemSolved',
-        problemSlug: problemSlug,
-        difficulty: detectProblemDifficulty()
-      });
+      // Fallback only: the interceptor usually reports first and reportSolved
+      // dedups by slug+href, so this no-ops when interception worked.
+      reportSolved(getProblemSlug(), null);
     };
 
     submissionObserver = new MutationObserver(handleMutation);

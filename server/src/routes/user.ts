@@ -1,13 +1,18 @@
 import { Router, Request, Response } from 'express';
 import { stmts, db, parseSlugsJson, serializeSlugMap, unionSlugMaps } from '../db';
 import { isValidUsername } from '../nonce';
+import { canonicalUsername } from '../validation';
 import { requireAuth, AuthedRequest } from '../authMiddleware';
+import { fixedLimiter } from '../v1RateLimits';
 
 export const userRouter = Router();
 
+// Guard the expensive fan-out recompute against abuse (mirrors v1 /users/me).
+const deleteLimiter = fixedLimiter({ perWindow: 3, windowMs: 24 * 60 * 60_000, bucket: 'legacy_user_delete', by: 'jwt' });
+
 userRouter.get('/:username', (req: Request, res: Response) => {
-  const username = req.params.username;
-  if (!isValidUsername(username)) return res.status(400).json({ error: 'invalid_username' });
+  if (!isValidUsername(req.params.username)) return res.status(400).json({ error: 'invalid_username' });
+  const username = canonicalUsername(req.params.username);
 
   const row = stmts.getSolvedSet.get(username) as
     | { slugs_json: string; schema_version: number; updated_at: number }
@@ -29,10 +34,10 @@ userRouter.get('/:username', (req: Request, res: Response) => {
   });
 });
 
-userRouter.delete('/:username', requireAuth, (req: AuthedRequest, res: Response) => {
-  const username = req.params.username;
-  if (!isValidUsername(username)) return res.status(400).json({ error: 'invalid_username' });
-  if (req.auth!.lc_username.toLowerCase() !== username.toLowerCase()) {
+userRouter.delete('/:username', deleteLimiter, requireAuth, (req: AuthedRequest, res: Response) => {
+  if (!isValidUsername(req.params.username)) return res.status(400).json({ error: 'invalid_username' });
+  const username = canonicalUsername(req.params.username);
+  if (req.auth!.lc_username !== username) {
     return res.status(403).json({ error: 'not_owner' });
   }
   // Targets this user contributed to need their solved_sets recomputed after stripping our rows.

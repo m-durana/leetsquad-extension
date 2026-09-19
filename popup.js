@@ -575,13 +575,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const displayName = username || 'Unknown';
     const safeName = escapeHtml(displayName);
     const initial = (displayName && displayName[0]) ? displayName[0].toUpperCase() : 'U';
-    const safeAvatar = avatar ? escapeHtml(avatar) : '';
+    const safeAvatar = escapeHtml(LeetSquadUtils.safeAvatarUrl(avatar));
     const profileHref = `https://leetcode.com/u/${encodeURIComponent(displayName)}`;
 
     return `
       <div class="friend-card">
         <div class="friend-avatar">
-          ${avatar ?
+          ${safeAvatar ?
             `<img src="${safeAvatar}" alt="${safeName}"/>` :
             `<span>${escapeHtml(initial)}</span>`
           }
@@ -620,6 +620,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // by the sort animation to re-sort without going back to the network.
   let lastLeaderboardUsersData = null;
   let lastLeaderboardMyUsername = null;
+  let lastLeaderboardCatalog = null;
 
   // Get timestamp for period start
   function getPeriodStartTimestamp(period) {
@@ -671,6 +672,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       StorageManager.getProblemCatalog().catch(() => null),
     ]);
     const catalog = cachedCatalog?.problems || null;
+    lastLeaderboardCatalog = catalog;
 
     const allUsers = myUsername ? [myUsername, ...friends.filter(f => f !== myUsername)] : friends;
 
@@ -847,7 +849,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             hard: u.data.solved?.hardSolved ?? 0,
           };
         }
-        const stats = countSubmissionsInPeriod(u.data.submissions, periodStart, catalog);
+        const stats = countSubmissionsInPeriod(u.data.submissions, periodStart, lastLeaderboardCatalog);
         return { username: u.username, data: u.data, ...stats };
       })
       .sort((a, b) => b.total - a.total);
@@ -985,7 +987,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const gradient = getAvatarGradient(username);
     const isMe = username === myUsername;
     const safeName = escapeHtml(username);
-    const safeAvatar = avatar ? escapeHtml(avatar) : '';
+    const safeAvatar = escapeHtml(LeetSquadUtils.safeAvatarUrl(avatar));
     const initial = (username && username[0]) ? escapeHtml(username[0].toUpperCase()) : 'U';
     const profileHref = `https://leetcode.com/u/${encodeURIComponent(username)}`;
 
@@ -999,7 +1001,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="leaderboard-item ${index < 3 ? `top-${index + 1}` : ''} ${isMe ? 'is-me' : ''}" data-username="${safeName}">
         <div class="rank ${rankClass}">${rankDisplay}</div>
         <div class="lb-avatar">
-          ${avatar ?
+          ${safeAvatar ?
             `<img src="${safeAvatar}" alt="${safeName}" style="width:100%;height:100%;object-fit:cover;border-radius:6px"/>` :
             `<span style="background:${gradient};width:100%;height:100%;display:flex;align-items:center;justify-content:center;border-radius:6px;color:white;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,0.3)">${initial}</span>`
           }
@@ -1196,7 +1198,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const initial = (displayName && displayName[0]) ? escapeHtml(displayName[0].toUpperCase()) : 'U';
     const gradient = getAvatarGradient(displayName);
     const safeName = escapeHtml(displayName);
-    const safeAvatar = avatar ? escapeHtml(avatar) : '';
+    const safeAvatar = escapeHtml(LeetSquadUtils.safeAvatarUrl(avatar));
     const safeTitle = escapeHtml(title || '');
     const safeLang = escapeHtml(formatLanguage(lang));
     const safeRuntime = runtime ? escapeHtml(String(runtime)) : '';
@@ -1215,7 +1217,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return `
       <div class="activity-item ${isFirstSolve ? 'first-solve' : 'additional-solve'}" data-sub-id="${safeSubId}">
         <div class="activity-avatar">
-          ${avatar ?
+          ${safeAvatar ?
             `<img src="${safeAvatar}" alt="${safeName}"/>` :
             `<span style="background:${gradient}">${initial}</span>`
           }
@@ -1963,12 +1965,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Render user avatar and name in mutuals
   function renderMutualsUser(avatarEl, nameEl, username, data, displayOverride = null) {
-    const avatar = data?.profile?.avatar;
+    const safeAvatar = escapeHtml(LeetSquadUtils.safeAvatarUrl(data?.profile?.avatar));
     const gradient = getAvatarGradient(username);
 
     const safeName = escapeHtml(username);
-    if (avatar) {
-      avatarEl.innerHTML = `<img src="${escapeHtml(avatar)}" alt="${safeName}"/>`;
+    if (safeAvatar) {
+      avatarEl.innerHTML = `<img src="${safeAvatar}" alt="${safeName}"/>`;
     } else {
       const initial = escapeHtml(username[0]?.toUpperCase() || 'U');
       avatarEl.innerHTML = `<span style="background:${gradient};width:100%;height:100%;display:flex;align-items:center;justify-content:center;border-radius:12px">${initial}</span>`;

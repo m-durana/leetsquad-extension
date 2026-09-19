@@ -3,7 +3,7 @@ import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { db, stmts } from '../db';
 import { requireAuth, AuthedRequest } from '../authMiddleware';
-import { isValidUsername } from '../validation';
+import { isValidUsername, canonicalUsername } from '../validation';
 
 export const friendsRouter = Router();
 
@@ -42,7 +42,10 @@ friendsRouter.put('/', putLimiter, requireAuth, (req: AuthedRequest, res: Respon
   if (!parsed.success) return res.status(400).json({ error: 'bad_body' });
   const me = req.auth!.lc_username;
 
-  const incoming = parsed.data.friends.filter((u) => isValidUsername(u) && u.toLowerCase() !== me.toLowerCase());
+  const incoming = parsed.data.friends
+    .filter((u) => isValidUsername(u))
+    .map(canonicalUsername)
+    .filter((u) => u !== me);
   const deduped = Array.from(new Set(incoming));
   if (deduped.length > MAX_FRIENDS) {
     return res.status(400).json({ error: 'too_many_friends' });

@@ -318,9 +318,11 @@ export function unionSlugMaps(maps: SlugMap[]): SlugMap {
 // One-time migration: bring legacy v1 arrays and v1.5 number-valued objects up
 // to the v2 SlugRecord shape. Idempotent; safe to run every boot.
 (function migrateSlugsJsonToV2() {
-  const tables = ['solved_sets', 'contributions'];
+  // Hardcoded allowlist: these are the only tables ever interpolated into SQL here.
+  const tables = ['solved_sets', 'contributions'] as const;
   const tx = db.transaction(() => {
     for (const table of tables) {
+      if (table !== 'solved_sets' && table !== 'contributions') continue;
       const rows = db.prepare(`SELECT rowid, slugs_json FROM ${table}`).all() as Array<{
         rowid: number;
         slugs_json: string;

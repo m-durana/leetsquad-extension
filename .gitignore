@@ -9,5 +9,6 @@ Thumbs.db
 .idea/
 *.swp
 *.zip
+*.sql
 dist/
 .qa/

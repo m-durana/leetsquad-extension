@@ -21,10 +21,15 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   });
 
   try {
-    const data = await chrome.storage.local.get(['leetsquad_friends']);
+    const data = await chrome.storage.local.get(['leetsquad_friends', 'leetsquad_last_check']);
     const friends = data.leetsquad_friends || [];
     if (friends.length > 0) {
       refreshSolvedSets(friends).catch(e => console.error('initial refresh:', e));
+    }
+    // Seed the notification checkpoint so the first poll doesn't flood the user
+    // with notifications for every friend's last 5 accepted submissions.
+    if (!data.leetsquad_last_check) {
+      await chrome.storage.local.set({ leetsquad_last_check: Date.now() });
     }
   } catch (e) {}
 
@@ -310,6 +315,10 @@ async function checkForNewSubmissions() {
     if (!settings.notifications || friends.length === 0) return;
 
     const newSubmissions = [];
+    // Snapshot the window start before polling so ACs that land mid-poll aren't
+    // missed, and only advance the checkpoint if every friend polled cleanly.
+    const checkpoint = Date.now();
+    let anyFailure = false;
 
     for (const username of friends) {
       try {
@@ -323,12 +332,16 @@ async function checkForNewSubmissions() {
 
         newSubmissions.push(...recent.map(s => ({ ...s, username })));
       } catch (e) {
+        anyFailure = true;
         console.error(`Error checking ${username}:`, e);
       }
     }
 
-    // Update last check time
-    await chrome.storage.local.set({ leetsquad_last_check: Date.now() });
+    // Only advance the checkpoint on a fully successful sweep; otherwise keep the
+    // old window so a friend's AC during a failed poll is caught next time.
+    if (!anyFailure) {
+      await chrome.storage.local.set({ leetsquad_last_check: checkpoint });
+    }
 
     // Send notifications for new submissions
     if (newSubmissions.length > 0) {

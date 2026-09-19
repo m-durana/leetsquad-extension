@@ -3,6 +3,7 @@ import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { stmts, sweepExpiredNonces } from '../db';
 import { generateNonce, isValidUsername } from '../nonce';
+import { canonicalUsername } from '../validation';
 import { getPublicSkillTags } from '../leetcode';
 import { signToken } from '../jwt';
 import { issueKeyForUser } from '../apiKeys';
@@ -27,7 +28,7 @@ authRouter.post('/start', startLimiter, (req: Request, res: Response) => {
   if (!parsed.success || !isValidUsername(parsed.data.lc_username)) {
     return res.status(400).json({ error: 'invalid_username' });
   }
-  const username = parsed.data.lc_username;
+  const username = canonicalUsername(parsed.data.lc_username);
 
   sweepExpiredNonces();
   stmts.deleteNoncesForUser.run(username);
@@ -44,7 +45,7 @@ authRouter.post('/verify', verifyLimiter, async (req: Request, res: Response) =>
   if (!parsed.success || !isValidUsername(parsed.data.lc_username)) {
     return res.status(400).json({ error: 'invalid_username' });
   }
-  const username = parsed.data.lc_username;
+  const username = canonicalUsername(parsed.data.lc_username);
 
   const row = stmts.findActiveNonce.get(username, Date.now()) as
     | { nonce: string; expires_at: number }
