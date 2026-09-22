@@ -158,7 +158,7 @@
     scheduleScan();
   }
 
-  chrome.storage.onChanged.addListener((changes, area) => {
+  browser.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
     if (changes[StorageManager.KEYS.SOLVED_SETS]
         || changes[StorageManager.KEYS.FRIENDS]

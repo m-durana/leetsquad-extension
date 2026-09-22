@@ -1,6 +1,6 @@
 // Parse-smoke tests: require each entry-point JS file to ensure it at least
-// parses under Node's V8. These caught one real bug — `await` inside a
-// non-async `updateWidgetUI` — that none of the behavioural tests would have
+// parses under Node's V8. These caught one real bug: `await` inside a
+// non-async `updateWidgetUI`, that none of the behavioural tests would have
 // found, because none of them actually load content.js.
 //
 // We can't fully execute content.js / popup.js / background.js inside Jest

@@ -119,14 +119,14 @@ const LeetCodeAPI = {
     return null;
   },
 
-  // Get CSRF token using chrome.cookies API (popup/background context)
+  // Get CSRF token using browser.cookies API (popup/background context)
   async getCsrfTokenAsync() {
     const syncToken = this.getCsrfToken();
     if (syncToken) return syncToken;
 
-    if (typeof chrome !== 'undefined' && chrome.cookies) {
+    if (typeof browser !== 'undefined' && browser.cookies) {
       try {
-        const cookie = await chrome.cookies.get({
+        const cookie = await browser.cookies.get({
           url: 'https://leetcode.com',
           name: 'csrftoken'
         });

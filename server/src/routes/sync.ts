@@ -30,8 +30,8 @@ const syncLimiter = limitsDisabled
   : rateLimit({ windowMs: 60 * 60_000, limit: 12, standardHeaders: 'draft-7', legacyHeaders: false });
 
 // Accepts three upload shapes:
-//   string[]                                  (legacy v1 — slug-only)
-//   Record<slug, number>                      (interim — slug -> ts)
+//   string[]                                  (legacy v1: slug-only)
+//   Record<slug, number>                      (interim: slug -> ts)
 //   Record<slug, { ts?, id?, lang?, rt?, mem? }> (v2 rich)
 const slugRecordSchema = z.object({
   ts: z.number().int().nonnegative().optional(),

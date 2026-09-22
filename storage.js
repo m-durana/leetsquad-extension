@@ -29,25 +29,18 @@ const StorageManager = {
   // Get data from storage. Returns null only when the key is genuinely unset;
   // falsy values like `false` or `0` round-trip intact.
   async get(key) {
-    return new Promise((resolve) => {
-      chrome.storage.local.get([key], (result) => {
-        resolve(result[key] !== undefined ? result[key] : null);
-      });
-    });
+    const result = await browser.storage.local.get([key]);
+    return result[key] !== undefined ? result[key] : null;
   },
 
   // Set data to storage
   async set(key, value) {
-    return new Promise((resolve) => {
-      chrome.storage.local.set({ [key]: value }, resolve);
-    });
+    await browser.storage.local.set({ [key]: value });
   },
 
   // Remove data from storage
   async remove(key) {
-    return new Promise((resolve) => {
-      chrome.storage.local.remove([key], resolve);
-    });
+    await browser.storage.local.remove([key]);
   },
 
   // Friends management

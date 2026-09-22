@@ -1,27 +1,31 @@
 // LeetSquad - Background Service Worker
 
-try { importScripts('shared.js', 'storage.js', 'achievements.js'); } catch (e) { console.error('importScripts:', e); }
+try { importScripts('browser-polyfill.js', 'shared.js', 'storage.js', 'achievements.js'); } catch (e) { console.error('importScripts:', e); }
 
 const LEETCODE_GRAPHQL = 'https://leetcode.com/graphql';
 function cloudBase() { return (typeof LeetSquadUtils !== 'undefined' && LeetSquadUtils.CLOUD_BASE) || 'https://leetsquad.miro.build'; }
 
+// Under Jest (NODE_ENV=test) skip real backoff waits so retry tests don't idle
+// for seconds each; production (no process/NODE_ENV) keeps the 2s base delay.
+const _BG_IS_TEST_ENV = typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test';
+
 // Retry config for background fetches
 const BG_RETRY_CONFIG = {
   maxRetries: 2,
-  retryDelay: 2000,
+  retryDelay: _BG_IS_TEST_ENV ? 0 : 2000,
   timeout: 15000,
 };
 
 // Initialize alarms on install
-chrome.runtime.onInstalled.addListener(async (details) => {
-  chrome.alarms.create('checkUpdates', { periodInMinutes: 30 });
-  chrome.alarms.create('dailyReset', {
+browser.runtime.onInstalled.addListener(async (details) => {
+  browser.alarms.create('checkUpdates', { periodInMinutes: 30 });
+  browser.alarms.create('dailyReset', {
     when: getNextMidnight(),
     periodInMinutes: 24 * 60
   });
 
   try {
-    const data = await chrome.storage.local.get(['leetsquad_friends', 'leetsquad_last_check']);
+    const data = await browser.storage.local.get(['leetsquad_friends', 'leetsquad_last_check']);
     const friends = data.leetsquad_friends || [];
     if (friends.length > 0) {
       refreshSolvedSets(friends).catch(e => console.error('initial refresh:', e));
@@ -29,7 +33,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     // Seed the notification checkpoint so the first poll doesn't flood the user
     // with notifications for every friend's last 5 accepted submissions.
     if (!data.leetsquad_last_check) {
-      await chrome.storage.local.set({ leetsquad_last_check: Date.now() });
+      await browser.storage.local.set({ leetsquad_last_check: Date.now() });
     }
   } catch (e) {}
 
@@ -37,14 +41,14 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     recoverPendingVerification().catch((e) => console.error('recovery onInstalled:', e?.message || e));
   }
   if (details?.reason === 'install') {
-    chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') }).catch(() => {});
+    browser.tabs.create({ url: browser.runtime.getURL('welcome.html') }).catch(() => {});
   }
 
   console.log('LeetSquad installed and alarms set');
 });
 
 // Handle alarms
-chrome.alarms.onAlarm.addListener(async (alarm) => {
+browser.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === 'checkUpdates') {
     await checkForNewSubmissions();
   } else if (alarm.name === 'dailyReset') {
@@ -126,7 +130,7 @@ async function refreshSolvedSets(friends) {
   // Load the current set once, mutate locally, write once.
   let all = {};
   try {
-    const existing = await chrome.storage.local.get(['leetsquad_solved_sets']);
+    const existing = await browser.storage.local.get(['leetsquad_solved_sets']);
     all = existing.leetsquad_solved_sets || {};
   } catch (e) {
     return;
@@ -161,7 +165,7 @@ async function refreshSolvedSets(friends) {
   }
 
   try {
-    await chrome.storage.local.set({ leetsquad_solved_sets: all });
+    await browser.storage.local.set({ leetsquad_solved_sets: all });
   } catch (e) {
     console.error('refreshSolvedSets write failed:', e);
   }
@@ -232,7 +236,7 @@ async function warmProfileCache(friends) {
   const BATCH = 5;
   const allCache = {};
   try {
-    const existing = await chrome.storage.local.get(['leetsquad_cache']);
+    const existing = await browser.storage.local.get(['leetsquad_cache']);
     Object.assign(allCache, existing.leetsquad_cache || {});
   } catch (e) {
     return;
@@ -286,7 +290,7 @@ async function warmProfileCache(friends) {
   }
 
   try {
-    await chrome.storage.local.set({ leetsquad_cache: allCache });
+    await browser.storage.local.set({ leetsquad_cache: allCache });
   } catch (e) {
     console.error('Warm cache write failed:', e);
   }
@@ -295,7 +299,7 @@ async function warmProfileCache(friends) {
 // Check for new submissions from friends
 async function checkForNewSubmissions() {
   try {
-    const data = await chrome.storage.local.get(['leetsquad_friends', 'leetsquad_settings', 'leetsquad_last_check']);
+    const data = await browser.storage.local.get(['leetsquad_friends', 'leetsquad_settings', 'leetsquad_last_check']);
     const friends = data.leetsquad_friends || [];
     const settings = data.leetsquad_settings || {};
     const lastCheck = data.leetsquad_last_check || 0;
@@ -340,7 +344,7 @@ async function checkForNewSubmissions() {
     // Only advance the checkpoint on a fully successful sweep; otherwise keep the
     // old window so a friend's AC during a failed poll is caught next time.
     if (!anyFailure) {
-      await chrome.storage.local.set({ leetsquad_last_check: checkpoint });
+      await browser.storage.local.set({ leetsquad_last_check: checkpoint });
     }
 
     // Send notifications for new submissions
@@ -357,7 +361,7 @@ async function checkForNewSubmissions() {
         const count = subs.length;
         const firstProblem = subs[0].title;
 
-        chrome.notifications.create(`leetsquad-${Date.now()}`, {
+        browser.notifications.create(`leetsquad-${Date.now()}`, {
           type: 'basic',
           iconUrl: 'icons/icon128.png',
           title: 'LeetSquad Update',
@@ -380,13 +384,13 @@ async function runAchievementsPass() {
   const result = await Achievements.runPass();
   if (!result?.unlockedNow?.length) return;
 
-  const settings = (await chrome.storage.local.get(['leetsquad_settings']))?.leetsquad_settings || {};
+  const settings = (await browser.storage.local.get(['leetsquad_settings']))?.leetsquad_settings || {};
   if (!settings.notifications) return;
 
   for (const id of result.unlockedNow) {
     const a = Achievements.getById(id);
     if (!a) continue;
-    chrome.notifications.create(`leetsquad-ach-${id}-${Date.now()}`, {
+    browser.notifications.create(`leetsquad-ach-${id}-${Date.now()}`, {
       type: 'basic',
       iconUrl: 'icons/icon128.png',
       title: `Achievement unlocked: ${a.name}`,
@@ -444,18 +448,18 @@ function _lcSkillsFn(op, value) {
 }
 
 async function findOrOpenLeetCodeTab() {
-  const existing = await chrome.tabs.query({ url: 'https://leetcode.com/*' });
+  const existing = await browser.tabs.query({ url: 'https://leetcode.com/*' });
   if (existing.length > 0) return { tabId: existing[0].id, opened: false };
-  const tab = await chrome.tabs.create({ url: 'https://leetcode.com/', active: false, pinned: true });
+  const tab = await browser.tabs.create({ url: 'https://leetcode.com/', active: false, pinned: true });
   await new Promise((resolve) => {
     const listener = (updatedTabId, info) => {
       if (updatedTabId === tab.id && info.status === 'complete') {
-        chrome.tabs.onUpdated.removeListener(listener);
+        browser.tabs.onUpdated.removeListener(listener);
         resolve();
       }
     };
-    chrome.tabs.onUpdated.addListener(listener);
-    setTimeout(() => { chrome.tabs.onUpdated.removeListener(listener); resolve(); }, 15000);
+    browser.tabs.onUpdated.addListener(listener);
+    setTimeout(() => { browser.tabs.onUpdated.removeListener(listener); resolve(); }, 15000);
   });
   return { tabId: tab.id, opened: true };
 }
@@ -465,7 +469,7 @@ async function lcSkillsOp(op, value, tabId) {
     const t = await findOrOpenLeetCodeTab();
     tabId = t.tabId;
   }
-  const [{ result } = {}] = await chrome.scripting.executeScript({
+  const [{ result } = {}] = await browser.scripting.executeScript({
     target: { tabId },
     func: _lcSkillsFn,
     args: [op, value ?? null],
@@ -478,7 +482,7 @@ async function lcSkillsOp(op, value, tabId) {
 // Runs from the periodic alarm and after explicit verify/refresh. No-op otherwise.
 async function uploadMySolvedSetIfOptedIn() {
   try {
-    const data = await chrome.storage.local.get([
+    const data = await browser.storage.local.get([
       'leetsquad_cloud_sync_enabled',
       'leetsquad_cloud_sync_token',
       'leetsquad_cloud_sync_token_exp',
@@ -543,7 +547,7 @@ async function uploadMySolvedSetIfOptedIn() {
       }),
     });
     if (r.status === 401) {
-      await chrome.storage.local.remove([
+      await browser.storage.local.remove([
         'leetsquad_cloud_sync_token',
         'leetsquad_cloud_sync_token_exp',
       ]);
@@ -551,7 +555,7 @@ async function uploadMySolvedSetIfOptedIn() {
       return { ok: false, error: 'jwt_invalid' };
     }
     if (r.ok) {
-      await chrome.storage.local.set({ leetsquad_cloud_sync_last_at: Date.now() });
+      await browser.storage.local.set({ leetsquad_cloud_sync_last_at: Date.now() });
       await clearSyncError();
       return { ok: true };
     }
@@ -568,17 +572,17 @@ async function uploadMySolvedSetIfOptedIn() {
 }
 
 async function recordSyncError(kind, code) {
-  await chrome.storage.local.set({
+  await browser.storage.local.set({
     leetsquad_last_sync_error: { kind, code, at: Date.now() },
   });
 }
 async function clearSyncError() {
-  await chrome.storage.local.remove('leetsquad_last_sync_error');
+  await browser.storage.local.remove('leetsquad_last_sync_error');
 }
 
 async function syncFriendsIfOptedIn() {
   try {
-    const data = await chrome.storage.local.get([
+    const data = await browser.storage.local.get([
       'leetsquad_cloud_sync_enabled',
       'leetsquad_cloud_sync_token',
       'leetsquad_cloud_sync_token_exp',
@@ -614,7 +618,7 @@ async function syncFriendsIfOptedIn() {
 
 async function syncDailyGoalsIfOptedIn() {
   try {
-    const data = await chrome.storage.local.get([
+    const data = await browser.storage.local.get([
       'leetsquad_cloud_sync_enabled',
       'leetsquad_cloud_sync_token',
       'leetsquad_cloud_sync_token_exp',
@@ -652,7 +656,7 @@ async function syncDailyGoalsIfOptedIn() {
       };
     }
 
-    await chrome.storage.local.set({ leetsquad_daily_goals: merged });
+    await browser.storage.local.set({ leetsquad_daily_goals: merged });
 
     const r2 = await fetch(`${cloudBase()}/daily-goals`, {
       method: 'PUT',
@@ -676,7 +680,7 @@ async function syncDailyGoalsIfOptedIn() {
 
 // Self-serve account + data deletion. JWT-authorized.
 async function deleteMyData() {
-  const data = await chrome.storage.local.get([
+  const data = await browser.storage.local.get([
     'leetsquad_cloud_sync_token',
     'leetsquad_cloud_sync_token_exp',
   ]);
@@ -695,7 +699,7 @@ async function deleteMyData() {
     return { ok: false, error: 'network' };
   }
   if (resp.status === 401) {
-    await chrome.storage.local.remove([
+    await browser.storage.local.remove([
       'leetsquad_cloud_sync_token',
       'leetsquad_cloud_sync_token_exp',
     ]);
@@ -710,7 +714,7 @@ async function deleteMyData() {
 
 // Rotate the user's /api/v1 API key. JWT-authorized.
 async function rotateApiKey() {
-  const data = await chrome.storage.local.get([
+  const data = await browser.storage.local.get([
     'leetsquad_cloud_sync_token',
     'leetsquad_cloud_sync_token_exp',
   ]);
@@ -730,7 +734,7 @@ async function rotateApiKey() {
     return { ok: false, error: 'network' };
   }
   if (resp.status === 401) {
-    await chrome.storage.local.remove([
+    await browser.storage.local.remove([
       'leetsquad_cloud_sync_token',
       'leetsquad_cloud_sync_token_exp',
     ]);
@@ -742,7 +746,7 @@ async function rotateApiKey() {
   }
   const body = await resp.json().catch(() => ({}));
   if (!body.api_key) return { ok: false, error: 'bad_response' };
-  await chrome.storage.local.set({ leetsquad_cloud_sync_api_key: body.api_key });
+  await browser.storage.local.set({ leetsquad_cloud_sync_api_key: body.api_key });
   return { ok: true, api_key: body.api_key };
 }
 
@@ -750,13 +754,13 @@ async function rotateApiKey() {
 const RECOVERY_KEY = 'leetsquad_verify_recovery';
 
 async function saveRecoverySnapshot(snapshot) {
-  await chrome.storage.local.set({ [RECOVERY_KEY]: snapshot });
+  await browser.storage.local.set({ [RECOVERY_KEY]: snapshot });
 }
 async function clearRecoverySnapshot() {
-  await chrome.storage.local.remove(RECOVERY_KEY);
+  await browser.storage.local.remove(RECOVERY_KEY);
 }
 async function readRecoverySnapshot() {
-  const d = await chrome.storage.local.get([RECOVERY_KEY]);
+  const d = await browser.storage.local.get([RECOVERY_KEY]);
   return d[RECOVERY_KEY] || null;
 }
 
@@ -824,7 +828,7 @@ async function verifySkillsFlow({ nonce, expectedUsername }) {
       api_key_tier: serverResp.api_key_tier,
     };
   } finally {
-    if (opened) chrome.tabs.remove(tabId).catch(() => {});
+    if (opened) browser.tabs.remove(tabId).catch(() => {});
   }
 }
 
@@ -848,16 +852,16 @@ async function recoverPendingVerification() {
   await clearRecoverySnapshot();
   return { ok: true, recovered: true };
   } finally {
-    if (opened) chrome.tabs.remove(tabId).catch(() => {});
+    if (opened) browser.tabs.remove(tabId).catch(() => {});
   }
 }
 
-chrome.runtime.onStartup?.addListener(() => {
+browser.runtime.onStartup?.addListener(() => {
   recoverPendingVerification().catch((e) => console.error('recovery onStartup:', e?.message || e));
 });
 
 // Listen for messages from popup/content scripts
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'uploadMySolvedSet') {
     uploadMySolvedSetIfOptedIn().then((r) => sendResponse(r || { ok: true }));
     return true;
@@ -922,7 +926,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // Update daily goal when problem is solved
 async function updateDailyGoal(problemSlug, difficulty) {
   try {
-    const data = await chrome.storage.local.get(['leetsquad_daily_goals']);
+    const data = await browser.storage.local.get(['leetsquad_daily_goals']);
     const goals = data.leetsquad_daily_goals || {};
     const today = new Date().toISOString().split('T')[0];
 
@@ -933,7 +937,7 @@ async function updateDailyGoal(problemSlug, difficulty) {
     if (!goals[today].problems.includes(problemSlug)) {
       goals[today].problems.push(problemSlug);
       goals[today].completed++;
-      await chrome.storage.local.set({ leetsquad_daily_goals: goals });
+      await browser.storage.local.set({ leetsquad_daily_goals: goals });
     }
   } catch (error) {
     console.error('Error updating daily goal:', error);
@@ -942,20 +946,20 @@ async function updateDailyGoal(problemSlug, difficulty) {
 
 // Keyboard shortcut: toggle the widget on the active LeetCode tab.
 // _execute_action is handled by Chrome automatically (opens the popup).
-chrome.commands?.onCommand.addListener(async (command) => {
+browser.commands?.onCommand.addListener(async (command) => {
   if (command !== 'toggle-widget') return;
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id || !tab.url?.includes('leetcode.com/problems/')) return;
-    chrome.tabs.sendMessage(tab.id, { action: 'toggleWidget' });
+    browser.tabs.sendMessage(tab.id, { action: 'toggleWidget' });
   } catch (e) {
     console.error('toggle-widget shortcut failed:', e);
   }
 });
 
 // Handle notification clicks
-chrome.notifications.onClicked.addListener((notificationId) => {
+browser.notifications.onClicked.addListener((notificationId) => {
   if (notificationId.startsWith('leetsquad-')) {
-    chrome.tabs.create({ url: 'https://leetcode.com/problemset/' });
+    browser.tabs.create({ url: 'https://leetcode.com/problemset/' });
   }
 });

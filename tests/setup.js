@@ -48,6 +48,10 @@ global.chrome = {
   },
 };
 
+// Alias browser -> chrome so migrated `browser.*` calls hit the same mocks.
+// Same object reference, so per-test mockImplementation tweaks apply to both.
+global.browser = global.chrome;
+
 // Mock fetch
 global.fetch = jest.fn();
 

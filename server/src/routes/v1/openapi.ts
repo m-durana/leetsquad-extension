@@ -9,7 +9,8 @@ const SPEC = {
     version: '1.0.0',
     description:
       'Read-only API over the LeetSquad cloud-sync corpus. ' +
-      'Cloud Sync users get a personal API key in the extension Settings. See API.md for usage terms.',
+      'Cloud Sync users get a personal API key in the extension Settings. ' +
+      'Usage terms: https://leetsquad.miro.build/terms.',
   },
   servers: [{ url: 'https://leetsquad.miro.build' }],
   components: {

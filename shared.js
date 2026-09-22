@@ -125,7 +125,7 @@ if (typeof self !== 'undefined' && typeof window === 'undefined') {
 
 async function refreshCloudBaseFromSettings() {
   try {
-    const data = await chrome.storage.local.get('leetsquad_settings');
+    const data = await browser.storage.local.get('leetsquad_settings');
     const debug = data?.leetsquad_settings?.debugMode === true;
     LEETSQUAD_CLOUD_BASE = debug ? LEETSQUAD_DEV_CLOUD_BASE : LEETSQUAD_PROD_CLOUD_BASE;
     LeetSquadUtils.CLOUD_BASE = LEETSQUAD_CLOUD_BASE;
@@ -133,7 +133,7 @@ async function refreshCloudBaseFromSettings() {
 }
 refreshCloudBaseFromSettings();
 try {
-  chrome.storage?.onChanged?.addListener?.((changes, area) => {
+  browser.storage?.onChanged?.addListener?.((changes, area) => {
     if (area === 'local' && changes.leetsquad_settings) refreshCloudBaseFromSettings();
   });
 } catch (_) {}

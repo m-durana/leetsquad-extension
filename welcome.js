@@ -5,7 +5,7 @@
   const errorEl = document.getElementById('error');
 
   skipBtn.addEventListener('click', () => {
-    chrome.storage.local.set({ leetsquad_welcome_skipped: Date.now() });
+    browser.storage.local.set({ leetsquad_welcome_skipped: Date.now() });
     window.close();
   });
 
@@ -61,12 +61,11 @@
 
     verifyBtn.textContent = 'Writing skill tag…';
 
-    const resp = await new Promise((resolve) => {
-      chrome.runtime.sendMessage(
-        { action: 'verifyBio', nonce, expectedUsername: username },
-        (r) => resolve(r || { ok: false, error: 'no_response' })
-      );
-    });
+    const resp = await browser.runtime.sendMessage(
+      { action: 'verifyBio', nonce, expectedUsername: username }
+    )
+      .then((r) => r || { ok: false, error: 'no_response' })
+      .catch(() => ({ ok: false, error: 'no_response' }));
 
     if (!resp.ok) {
       errorEl.textContent = `Verification failed (${resp.error || 'unknown'}). Open the popup → Cloud Sync settings and retry.`;
@@ -76,7 +75,7 @@
       return;
     }
 
-    await chrome.storage.local.set({
+    await browser.storage.local.set({
       leetsquad_cloud_sync_token: resp.token,
       leetsquad_cloud_sync_token_exp: resp.expires_at,
       leetsquad_cloud_sync_username: resp.username,
@@ -84,7 +83,7 @@
       leetsquad_welcome_skipped: Date.now(),
     });
     if (resp.api_key) {
-      await chrome.storage.local.set({ leetsquad_cloud_sync_api_key: resp.api_key });
+      await browser.storage.local.set({ leetsquad_cloud_sync_api_key: resp.api_key });
     }
 
     verifyBtn.textContent = 'Verified ✓ closing…';

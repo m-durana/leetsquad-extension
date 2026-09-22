@@ -2,9 +2,9 @@
 document.addEventListener('DOMContentLoaded', async () => {
   // Free user-driven push on popup-open; background worker re-checks opt-in + token, fire-and-forget
   // nudge and never blocks popup rendering.
-  try { chrome.runtime?.sendMessage?.({ action: 'uploadMySolvedSet' }); } catch (e) {}
-  try { chrome.runtime?.sendMessage?.({ action: 'syncFriends' }); } catch (e) {}
-  try { chrome.runtime?.sendMessage?.({ action: 'syncDailyGoals' }); } catch (e) {}
+  try { browser.runtime?.sendMessage?.({ action: 'uploadMySolvedSet' }); } catch (e) {}
+  try { browser.runtime?.sendMessage?.({ action: 'syncFriends' }); } catch (e) {}
+  try { browser.runtime?.sendMessage?.({ action: 'syncDailyGoals' }); } catch (e) {}
   if (typeof CloudSync !== 'undefined') {
     CloudSync.fetchProblemCatalogIfStale().catch(() => {});
   }
@@ -89,12 +89,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    const resp = await new Promise((resolve) => {
-      chrome.runtime.sendMessage(
-        { action: 'verifyBio', nonce, expectedUsername: username },
-        (r) => resolve(r || { ok: false, error: 'no_response' })
-      );
-    });
+    const resp = await browser.runtime.sendMessage(
+      { action: 'verifyBio', nonce, expectedUsername: username }
+    )
+      .then((r) => r || { ok: false, error: 'no_response' })
+      .catch(() => ({ ok: false, error: 'no_response' }));
 
     if (!resp.ok) {
       restore();
@@ -114,7 +113,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await updateCloudSyncNavStatus();
 
     verifyBannerBtn.textContent = '✓ Verified';
-    chrome.runtime.sendMessage({ action: 'uploadMySolvedSet' });
+    browser.runtime.sendMessage({ action: 'uploadMySolvedSet' });
     reconcileFriendsAfterVerify().catch((e) => console.error('friend reconcile:', e));
     setTimeout(() => {
       verifyBanner?.classList.add('hidden');
@@ -481,7 +480,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       showToast(`Added ${username}!`);
       bootstrapFromSolutions(username).catch(() => {});
       // Persist the new friend list to the cloud (no-op if cloud sync is off).
-      try { chrome.runtime?.sendMessage?.({ action: 'syncFriends' }); } catch (e) {}
+      try { browser.runtime?.sendMessage?.({ action: 'syncFriends' }); } catch (e) {}
       loadFriends();
       loadLeaderboard();
     } catch (error) {
@@ -558,7 +557,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       btn.addEventListener('click', async (e) => {
         const username = e.currentTarget.dataset.username;
         await StorageManager.removeFriend(username);
-        try { chrome.runtime?.sendMessage?.({ action: 'syncFriends' }); } catch (err) {}
+        try { browser.runtime?.sendMessage?.({ action: 'syncFriends' }); } catch (err) {}
         loadFriends();
         loadLeaderboard();
         showToast(`Removed ${username}`);
@@ -1289,7 +1288,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const key = await CloudSync.getApiKey();
     if (apiKeyInput) {
       apiKeyInput.value = key || '';
-      apiKeyInput.placeholder = key ? '' : '(none locally — click ↻ to regenerate)';
+      apiKeyInput.placeholder = key ? '' : '(none locally; click ↻ to regenerate)';
     }
   }
 
@@ -1386,12 +1385,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     cloudVerifyErrorEl.classList.add('hidden');
 
     try {
-      const resp = await new Promise((resolve) => {
-        chrome.runtime.sendMessage(
-          { action: 'verifyBio', nonce: cloudVerifyNonceEl.textContent, expectedUsername: pendingCloudUsername },
-          (r) => resolve(r || { ok: false, error: 'no_response' })
-        );
-      });
+      const resp = await browser.runtime.sendMessage(
+        { action: 'verifyBio', nonce: cloudVerifyNonceEl.textContent, expectedUsername: pendingCloudUsername }
+      )
+        .then((r) => r || { ok: false, error: 'no_response' })
+        .catch(() => ({ ok: false, error: 'no_response' }));
 
       if (!resp.ok) {
         cloudVerifyErrorEl.textContent = humanizeVerifyError(resp.error, resp.username);
@@ -1416,7 +1414,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Upload work itself runs entirely in the background worker. The popup
       // only nudges it so the first sync happens immediately rather than at
       // the next 30-min alarm tick.
-      chrome.runtime.sendMessage({ action: 'uploadMySolvedSet' });
+      browser.runtime.sendMessage({ action: 'uploadMySolvedSet' });
 
       // Restore / reconcile the friend list against the server. If the lists
       // disagree, prompt the user to choose. Runs after verify-success so
@@ -1457,11 +1455,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!ok) return;
     deleteMyDataBtn.disabled = true;
     try {
-      const resp = await new Promise((resolve) => {
-        chrome.runtime.sendMessage({ action: 'deleteMyData' }, (r) =>
-          resolve(r || { ok: false, error: 'no_response' })
-        );
-      });
+      const resp = await browser.runtime.sendMessage({ action: 'deleteMyData' })
+        .then((r) => r || { ok: false, error: 'no_response' })
+        .catch(() => ({ ok: false, error: 'no_response' }));
       if (!resp.ok) {
         if (resp.error === 'jwt_expired' || resp.error === 'jwt_invalid' || resp.error === 'jwt_missing') {
           showToast('Cannot reach your account. Re-verify Cloud Sync and try again.', true);
@@ -1490,11 +1486,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     apiKeyRotateBtn.classList.add('rotating');
     apiKeyRotateBtn.disabled = true;
     try {
-      const resp = await new Promise((resolve) => {
-        chrome.runtime.sendMessage({ action: 'rotateApiKey' }, (r) =>
-          resolve(r || { ok: false, error: 'no_response' })
-        );
-      });
+      const resp = await browser.runtime.sendMessage({ action: 'rotateApiKey' })
+        .then((r) => r || { ok: false, error: 'no_response' })
+        .catch(() => ({ ok: false, error: 'no_response' }));
       if (!resp.ok) {
         if (resp.error === 'jwt_expired' || resp.error === 'jwt_invalid') {
           showToast('Re-verify Cloud Sync to issue a new key.', true);
@@ -1551,7 +1545,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   async function applyMergedFriendList(merged) {
     await StorageManager.set(StorageManager.KEYS.FRIENDS, merged);
-    try { chrome.runtime?.sendMessage?.({ action: 'syncFriends' }); } catch (e) {}
+    try { browser.runtime?.sendMessage?.({ action: 'syncFriends' }); } catch (e) {}
     loadFriends();
     loadLeaderboard();
   }
@@ -1600,7 +1594,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (server.length === 0 && local.length > 0) {
       // First push: send local up silently.
-      try { chrome.runtime?.sendMessage?.({ action: 'syncFriends' }); } catch (e) {}
+      try { browser.runtime?.sendMessage?.({ action: 'syncFriends' }); } catch (e) {}
       return;
     }
 
@@ -1649,13 +1643,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Show the user the current keyboard bindings (read via chrome.commands.getAll)
-  // and link them out to chrome://extensions/shortcuts where Chrome lets them
-  // change the keys. Extensions cannot rewrite their own command bindings.
+  // Show the user the current keyboard bindings (read via browser.commands.getAll)
+  // and link them out to the browser's shortcuts page (chrome://extensions/shortcuts
+  // on Chrome, about:addons on Firefox). Extensions cannot rewrite their own bindings.
   async function renderShortcuts() {
-    if (!chrome?.commands?.getAll) return;
+    if (!browser?.commands?.getAll) return;
     try {
-      const commands = await chrome.commands.getAll();
+      const commands = await browser.commands.getAll();
       const popupCmd = commands.find(c => c.name === '_execute_action');
       const widgetCmd = commands.find(c => c.name === 'toggle-widget');
       const popupEl = document.getElementById('shortcut-popup');
@@ -1667,7 +1661,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('edit-shortcuts-link')?.addEventListener('click', (e) => {
     e.preventDefault();
-    chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+    // Firefox has no deep link to the shortcuts page; about:addons is the closest
+    // (users manage shortcuts from its gear menu). Chrome deep-links directly.
+    const isFirefox = browser.runtime.getURL('').startsWith('moz-extension://');
+    browser.tabs.create({ url: isFirefox ? 'about:addons' : 'chrome://extensions/shortcuts' });
   });
 
   // Settings change handlers
@@ -1714,7 +1711,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         'leetsquad_achievements'
       ];
       const raw = await new Promise(resolve =>
-        chrome.storage.local.get(keys, resolve)
+        browser.storage.local.get(keys, resolve)
       );
       const payload = {
         version: 1,
@@ -1812,7 +1809,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       `Error code: ${code}`,
       ctx.kind ? `Where: ${ctx.kind}` : null,
       `Username: ${ctx.username || 'unknown'}`,
-      `Extension version: ${chrome.runtime.getManifest().version}`,
+      `Extension version: ${browser.runtime.getManifest().version}`,
       `User agent: ${navigator.userAgent}`,
       '',
       'What I was trying to do:',
@@ -1836,17 +1833,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   async function surfaceSyncErrorIfRecent() {
     try {
-      const data = await new Promise((res) => chrome.storage.local.get(['leetsquad_last_sync_error'], res));
+      const data = await new Promise((res) => browser.storage.local.get(['leetsquad_last_sync_error'], res));
       const err = data.leetsquad_last_sync_error;
       if (!err) return;
       if (Date.now() - (err.at || 0) > 24 * 60 * 60 * 1000) return;
       const dismissedKey = `leetsquad_sync_error_dismissed_${err.at}`;
-      const d = await new Promise((res) => chrome.storage.local.get([dismissedKey], res));
+      const d = await new Promise((res) => browser.storage.local.get([dismissedKey], res));
       if (d[dismissedKey]) return;
       const kindLabel = err.kind === 'upload' ? 'Cloud sync upload' : 'Friend list sync';
       const username = await StorageManager.getMyUsername();
       showFailureToast(`${kindLabel} failed (${err.code}).`, err.code, { kind: err.kind, username });
-      await chrome.storage.local.set({ [dismissedKey]: Date.now() });
+      await browser.storage.local.set({ [dismissedKey]: Date.now() });
     } catch (e) {}
   }
 

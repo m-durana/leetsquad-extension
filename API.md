@@ -1,6 +1,6 @@
 # LeetSquad Public API
 
-Read-only HTTP API at `https://leetsquad.miro.build/api/v1/*` over the cloud-sync corpus. OpenAPI 3.1 at [`/api/v1/openapi.json`](https://leetsquad.miro.build/api/v1/openapi.json). Usage terms are in the [Terms](#terms) section below.
+Read-only HTTP API at `https://leetsquad.miro.build/api/v1/*` over the cloud-sync corpus. OpenAPI 3.1 at [`/api/v1/openapi.json`](https://leetsquad.miro.build/api/v1/openapi.json). Usage terms: https://leetsquad.miro.build/terms.
 
 ## Quick start
 
@@ -36,15 +36,15 @@ Every verified Cloud Sync user gets a personal API key, visible in the extension
 | `GET` | `/api/v1/health` | none | ∞ | ∞ |
 | `GET` | `/api/v1/users/:username` | optional key | 60/hr/IP | 5/sec |
 | `GET` | `/api/v1/users/:username/count` | optional key | 120/hr/IP | 10/sec |
-| `GET` | `/api/v1/users` (paginated) | required key | — | 1/sec |
+| `GET` | `/api/v1/users` (paginated) | required key | - | 1/sec |
 | `GET` | `/api/v1/stats` | optional key | 60/hr/IP | 5/sec |
-| `GET` | `/api/v1/changes?since=&limit=` | required key | — | 5/sec |
+| `GET` | `/api/v1/changes?since=&limit=` | required key | - | 5/sec |
 | `GET` | `/api/v1/slugs/:slug/count` | optional key | 120/hr/IP | 10/sec |
-| `GET` | `/api/v1/slugs/:slug/solvers?cursor=&limit=` | required key | — | 2/sec |
+| `GET` | `/api/v1/slugs/:slug/solvers?cursor=&limit=` | required key | - | 2/sec |
 | `GET` | `/api/v1/openapi.json` | none | ∞ | ∞ |
-| `GET` | `/api/v1/key` | JWT | — | 12/hr |
-| `POST` | `/api/v1/key/rotate` | JWT | — | 6/day |
-| `DELETE` | `/api/v1/users/me` | JWT | — | 3/day |
+| `GET` | `/api/v1/key` | JWT | - | 12/hr |
+| `POST` | `/api/v1/key/rotate` | JWT | - | 6/day |
+| `DELETE` | `/api/v1/users/me` | JWT | - | 3/day |
 
 All responses include `X-RateLimit-*` headers and an `x-trace-id` header. Quote `trace_id` from any error when filing a bug.
 
@@ -103,11 +103,7 @@ The server only stores `sha256(key)`. You see the plaintext exactly twice: at ve
 
 ## Terms
 
-The dataset is contributed by LeetSquad extension users who have proven ownership of a LeetCode handle via the bio-nonce verification flow and kept Cloud Sync enabled. Each row is a self-uploaded or crowdsourced claim about which problem slugs a user has solved, bounded by that user's public solved count. A row may exist for a user with Cloud Sync off, populated by other users who follow them.
-
-By using the API you agree that the followign are prohibited: targeted harassment; impersonation; combining this data with other personally identifiable information without users' separate consent; redistribution under more permissive terms.
-
-API keys may be revoked at any time if traffic is abusive. You may rotate your own key from the extension's Settings panel.
+Usage terms for this API are published at https://leetsquad.miro.build/terms.
 
 ## Examples
 

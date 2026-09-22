@@ -22,7 +22,7 @@
   function createSquadWidget(solvedCount = 0) {
     const widget = document.createElement('div');
     widget.id = 'leetsquad-widget';
-    const iconUrl = chrome.runtime.getURL('icons/logo.png');
+    const iconUrl = browser.runtime.getURL('icons/logo.png');
     widget.innerHTML = `
       <div class="leetsquad-header">
         <div class="leetsquad-logo">
@@ -313,7 +313,7 @@
     if (!content) return;
 
     try {
-      if (!chrome || !chrome.storage) {
+      if (!browser || !browser.storage) {
         console.error('LeetSquad: Extension context invalidated. Please reload the page.');
         content.innerHTML = `
           <div class="leetsquad-error">
@@ -567,7 +567,7 @@
     if (document.getElementById('leetsquad-widget')) return;
 
     // Check if extension context is still valid
-    if (!chrome?.storage?.local) {
+    if (!browser?.storage?.local) {
       console.log('LeetSquad: Extension context not available');
       return;
     }
@@ -671,7 +671,7 @@
     if (lastReportedSlug === key) return;
     lastReportedSlug = key;
 
-    chrome.runtime.sendMessage({
+    browser.runtime.sendMessage({
       action: 'problemSolved',
       problemSlug: problemSlug,
       difficulty: detectProblemDifficulty()
@@ -747,7 +747,7 @@
   // Check if extension context is valid
   function isExtensionContextValid() {
     try {
-      return !!(chrome && chrome.storage && chrome.storage.local);
+      return !!(browser && browser.storage && browser.storage.local);
     } catch (e) {
       return false;
     }
@@ -823,7 +823,7 @@
   }
 
   // Background relays the keyboard-shortcut command here.
-  chrome.runtime.onMessage.addListener((msg) => {
+  browser.runtime.onMessage.addListener((msg) => {
     if (msg?.action !== 'toggleWidget') return;
     const widget = document.getElementById('leetsquad-widget');
     if (!widget) return;
@@ -832,7 +832,7 @@
   });
 
   // Listen for storage changes to update widget in real-time
-  chrome.storage.onChanged.addListener((changes, namespace) => {
+  browser.storage.onChanged.addListener((changes, namespace) => {
     if (namespace !== 'local') return;
 
     const widget = document.getElementById('leetsquad-widget');

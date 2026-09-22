@@ -257,7 +257,7 @@ describe('/api/v1/slugs/:slug/solvers', () => {
   });
 });
 
-describe('/api/v1/key (JWT) — get/rotate', () => {
+describe('/api/v1/key (JWT): get/rotate', () => {
   it('GET returns prefix + tier + created_at for a verified user', async () => {
     const issued = issueKeyForUser('alice');
     const r = await request(app).get('/api/v1/key').set('Authorization', jwtHeader('alice'));
@@ -325,14 +325,14 @@ describe('DELETE /api/v1/users/me', () => {
     expect(db.prepare('SELECT COUNT(*) AS c FROM users WHERE lc_username = ?').get('alice')).toMatchObject({ c: 0 });
     expect(db.prepare('SELECT COUNT(*) AS c FROM solved_sets WHERE lc_username = ?').get('alice')).toMatchObject({ c: 0 });
     // Contributions ABOUT alice are gone, contributions BY alice (about bob)
-    // are preserved — they're observations about the target, not alice's data.
+    // are preserved, they're observations about the target, not alice's data.
     expect(db.prepare('SELECT COUNT(*) AS c FROM contributions WHERE target_username = ?').get('alice')).toMatchObject({ c: 0 });
     expect(db.prepare('SELECT COUNT(*) AS c FROM contributions WHERE contributor_username = ? AND target_username = ?').get('alice', 'bob')).toMatchObject({ c: 1 });
     expect(db.prepare('SELECT COUNT(*) AS c FROM user_friends WHERE lc_username = ?').get('alice')).toMatchObject({ c: 0 });
     expect(db.prepare('SELECT COUNT(*) AS c FROM user_daily_goals WHERE lc_username = ?').get('alice')).toMatchObject({ c: 0 });
     expect(db.prepare('SELECT COUNT(*) AS c FROM api_keys WHERE lc_username = ?').get('alice')).toMatchObject({ c: 0 });
 
-    // Bob's data is untouched — including bob's friend list, which still
+    // Bob's data is untouched, including bob's friend list, which still
     // contains alice's handle (a follower's list is their data, not alice's).
     expect(db.prepare('SELECT COUNT(*) AS c FROM users WHERE lc_username = ?').get('bob')).toMatchObject({ c: 1 });
     expect(db.prepare('SELECT COUNT(*) AS c FROM solved_sets WHERE lc_username = ?').get('bob')).toMatchObject({ c: 1 });

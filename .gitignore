@@ -11,4 +11,7 @@ Thumbs.db
 *.zip
 *.sql
 dist/
+dist-chrome/
+dist-firefox/
 .qa/
+website-handoff/

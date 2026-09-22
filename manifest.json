@@ -30,7 +30,7 @@
     {
       "matches": ["https://leetcode.com/problems/*"],
       "css": ["styles/content.css"],
-      "js": ["shared.js", "api.js", "storage.js", "cloudsync.js", "content.js"],
+      "js": ["browser-polyfill.js", "shared.js", "api.js", "storage.js", "cloudsync.js", "content.js"],
       "run_at": "document_idle"
     },
     {
@@ -43,7 +43,7 @@
         "https://leetcode.com/"
       ],
       "css": ["styles/content.css"],
-      "js": ["shared.js", "storage.js", "content-problemset.js"],
+      "js": ["browser-polyfill.js", "shared.js", "storage.js", "content-problemset.js"],
       "run_at": "document_idle"
     }
   ],

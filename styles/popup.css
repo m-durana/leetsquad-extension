@@ -896,7 +896,7 @@ a:hover { opacity: 0.85; }
 
 /* Floating pill above the daily-goal footer. bottom is tuned to sit just
    above the footer (which is ~49px tall) with a small gap. The slideUp
-   keyframe animates translate(-50%, Y) — keep the centering transform
+   keyframe animates translate(-50%, Y), keep the centering transform
    consistent in both the static rule and the keyframe to avoid a left-jitter
    when the animation ends. */
 .toast {

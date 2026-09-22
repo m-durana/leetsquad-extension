@@ -17,15 +17,13 @@ Browser extension that adds social features to LeetCode: see which friends solve
 
 ## Sign-in
 
-Sign-in is fully optional. The leaderboard, activity feed, and "who solved this" widget all work using LeetCode's public data. Signing in at leetcode.com unlocks the Beats X% runtime badges and auto-detects your username.
+There is no LeetSquad-only sign-in function. LeetSquad uses LeetCode's signed in account as your account. However sign-in is fully optional. The leaderboard, activity feed, and "who solved this" widget all work using LeetCode's public data. Signing in at leetcode.com unlocks the Beats X% runtime badges and auto-detects your username.
 
 ## Cloud sync
 
 LeetCode only exposes each user's last ~20 accepted submissions publicly, so a friend's older solves never appear on the widget by default. To close that gap, LeetSquad publishes your verified solved-problem list to `leetsquad.miro.build`. Other LeetSquad users see your published list instantly on shared problem pages.
 
-Only your LeetCode username and the list of solved problem slugs are shared. No code, no profile data, no email, no IP retention beyond rate-limit windows (feel free to check the `server` folder).
-
-The same data is exposed as a public read-only API; see [API.md](API.md).
+Only your LeetCode username and the list of solved problem slugs are shared. No code, no profile data, no email, no IP retention beyond rate-limit windows (feel free to check the `server` folder). The same data is exposed as a public read-only API; see [API.md](API.md).
 
 Cloud sync is on by default to make the widget useful out of the box. You can disconnect at any time from Settings, which stops the extension from uploading further data.
 
@@ -33,7 +31,7 @@ Cloud sync is on by default to make the widget useful out of the box. You can di
 
 The fastest path is the extension: open Settings, scroll to Cloud Sync, click Delete my data. That will wipe and and all data about you from the server, including your API keys. It's a hard delete with no tombstones but re-enabling Cloud Sync rebuilds the row from scratch.
 
-If you've lost your JWT (extension uninstalled, browser wiped), open a [GitHub issue](https://github.com/m-durana/leetsquad-extension/issues) titled `Data deletion request: <your-leetcode-handle>` with a screenshot of you signed into that LeetCode account.
+If you've lost your JWT (extension uninstalled, browser wiped), open a [GitHub issue](https://github.com/m-durana/leetsquad-extension/issues) titled `Data deletion request: <your-leetcode-handle>` with a screenshot of you signed into that LeetCode account or alternatively contact me [here](https://miro.build/contact).
 
 ## Permissions
 
