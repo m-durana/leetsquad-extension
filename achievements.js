@@ -136,8 +136,7 @@
     let difficultyCounts = { Easy: 0, Medium: 0, Hard: 0 };
     if (myUsername) {
       const entry = cache[`${myUsername}:full`] || cache[myUsername];
-      // The cache stores flattened per-difficulty counts under `solved`
-      // (see warmProfileCache / getFullUserData); fall back to raw acSubmissionNum arrays.
+      // Cache stores flattened counts under solved; fall back to acSubmissionNum.
       const solved = entry?.solved;
       const acStats = entry?.profile?.submitStatsGlobal?.acSubmissionNum
         || entry?.profile?.submitStats?.acSubmissionNum;

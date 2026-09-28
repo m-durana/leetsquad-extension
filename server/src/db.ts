@@ -238,8 +238,7 @@ export function sweepExpiredNonces(): void {
   stmts.deleteExpiredNonces.run(Date.now());
 }
 
-// Per-slug observation. All fields optional; an empty record {} means the slug
-// was observed but no metadata is known yet.
+// Per-slug observation; all fields optional, {} means observed with no metadata yet.
 export interface SlugRecord {
   ts?: number;     // submission unix seconds
   id?: string;     // LeetCode submission id
@@ -293,8 +292,7 @@ export function serializeSlugMap(m: SlugMap): string {
   return JSON.stringify(m);
 }
 
-// Merge incoming into prev: keep max ts; for id/lang/rt/mem prefer the most
-// recent non-empty value, but never erase a known value with an empty one.
+// Merge into prev: keep max ts; prefer newest non-empty id/lang/rt/mem, never erase with empty.
 export function mergeSlugRecord(prev: SlugRecord, incoming: SlugRecord): SlugRecord {
   const out: SlugRecord = { ...prev };
   if (typeof incoming.ts === 'number' && (out.ts === undefined || incoming.ts > out.ts)) out.ts = incoming.ts;
@@ -315,8 +313,7 @@ export function unionSlugMaps(maps: SlugMap[]): SlugMap {
   return out;
 }
 
-// One-time migration: bring legacy v1 arrays and v1.5 number-valued objects up
-// to the v2 SlugRecord shape. Idempotent; safe to run every boot.
+// One-time migration of legacy v1/v1.5 shapes to v2 SlugRecord. Idempotent; safe every boot.
 (function migrateSlugsJsonToV2() {
   // Hardcoded allowlist: these are the only tables ever interpolated into SQL here.
   const tables = ['solved_sets', 'contributions'] as const;

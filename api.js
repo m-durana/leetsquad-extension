@@ -1,16 +1,12 @@
-// LeetCode API wrapper - Direct GraphQL queries (no third-party dependency)
-// Features: in-memory cache, request deduplication, concurrency control, batch queries
+// LeetCode API wrapper: direct GraphQL with in-memory cache, dedup, concurrency control, batching.
 const LEETCODE_GRAPHQL = 'https://leetcode.com/graphql';
 
-// TTL is sourced from LeetSquadUtils.CACHE_TTL_MS when shared.js is loaded
-// alongside api.js (popup + content scripts). For tests/standalone require()
-// the fallback keeps behaviour consistent.
+// TTL comes from LeetSquadUtils.CACHE_TTL_MS when shared.js is loaded; fallback for tests.
 const _SHARED_TTL = (typeof LeetSquadUtils !== 'undefined' && LeetSquadUtils?.CACHE_TTL_MS)
   || (typeof window !== 'undefined' && window.LeetSquadUtils?.CACHE_TTL_MS)
   || 10 * 60 * 1000;
 
-// Under Jest (NODE_ENV=test) skip real backoff waits so retry tests don't idle
-// for seconds each; production (no process/NODE_ENV) keeps the 1s base delay.
+// Under Jest, skip real backoff waits; prod keeps the 1s base delay.
 const _IS_TEST_ENV = typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test';
 
 const API_CONFIG = {
@@ -25,8 +21,7 @@ const API_CONFIG = {
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// ===== In-Memory Response Cache =====
-// Keyed by method+args, survives across page navigations within the same tab session.
+// In-memory response cache, keyed by method+args; survives page navs within a tab.
 const _cache = new Map();
 
 function _getCached(key) {
@@ -37,8 +32,7 @@ function _getCached(key) {
 }
 
 function _setCache(key, data) {
-  // Re-insert moves the key to the end of the Map iteration order, giving us
-  // a free LRU on top of the existing structure.
+  // Re-insert to move the key to the end: a free LRU on the Map's iteration order.
   if (_cache.has(key)) _cache.delete(key);
   _cache.set(key, { data, ts: Date.now() });
 
@@ -57,12 +51,10 @@ function _setCache(key, data) {
   }
 }
 
-// ===== In-Flight Request Deduplication =====
-// If identical request is already pending, return same promise instead of firing duplicate.
+// In-flight dedup: reuse a pending identical request instead of firing a duplicate.
 const _inflight = new Map();
 
-// ===== Concurrency Control (Semaphore) =====
-// Limits parallel network requests to avoid overwhelming LeetCode's rate limiter.
+// Concurrency semaphore: cap parallel requests to avoid LeetCode's rate limiter.
 let _activeRequests = 0;
 const _waitQueue = [];
 
@@ -80,9 +72,7 @@ function _releaseSlot() {
   if (_waitQueue.length > 0) _waitQueue.shift()();
 }
 
-// ===== Cached Method Wrapper =====
-// Wraps an async method with: (1) in-memory cache lookup, (2) in-flight dedup.
-// The underlying graphqlQuery handles concurrency + retry.
+// Cached method wrapper: in-memory cache + in-flight dedup (graphqlQuery handles concurrency/retry).
 function _cached(prefix, fn) {
   return async function(...args) {
     const key = `${prefix}:${JSON.stringify(args)}`;
@@ -138,8 +128,7 @@ const LeetCodeAPI = {
     return null;
   },
 
-  // Execute a GraphQL query with concurrency control and retry.
-  // This is the raw network layer. Caching/dedup happens at the method level via _cached.
+  // Raw network layer: GraphQL with concurrency + retry (caching/dedup live at the method level).
   async graphqlQuery(query, variables = {}, retries = API_CONFIG.maxRetries) {
     await _acquireSlot();
 
@@ -242,9 +231,7 @@ const LeetCodeAPI = {
     return slugs;
   },
 
-  // Owner-only. Paginates every question the user has interacted with, with
-  // last-submitted timestamp + question status. Powers /progress/ on LC.
-  // Returns [{ titleSlug, lastSubmittedAt (sec), numSubmitted, questionStatus }].
+  // Owner-only paginated list of interacted questions: [{ titleSlug, lastSubmittedAt(sec), numSubmitted, questionStatus }].
   async getMyProgressQuestionList(opts = {}) {
     const query = `
       query userProgressQuestionList($filters: UserProgressQuestionListInput) {
@@ -289,9 +276,7 @@ const LeetCodeAPI = {
     return out;
   },
 
-  // Owner-only. Returns the user's submissions for one question with full
-  // metadata. Used to backfill rich {id, lang, rt, mem} into the self solved
-  // set. Filter to AC (status === 10) for "solved" records.
+  // Owner-only submissions for one question with full metadata; backfills {id,lang,rt,mem}. AC = status 10.
   async getMyAcSubmissionsForSlug(questionSlug, opts = {}) {
     const query = `
       query submissionList($offset: Int!, $limit: Int!, $lastKey: String, $questionSlug: String!) {
@@ -703,9 +688,7 @@ const LeetCodeAPI = {
     };
   },
 
-  // ============= Batch Methods =============
-  // These use GraphQL aliases to fetch data for multiple users in a single request.
-  // Falls back to individual requests if the batch query fails.
+  // Batch methods: GraphQL aliases fetch many users in one request; fall back to individual on failure.
 
   async batchGetRecentAcSubmissions(usernames, limit = 50) {
     if (usernames.length === 0) return {};
@@ -860,8 +843,7 @@ const LeetCodeAPI = {
     return results;
   },
 
-  // High-level: check if multiple users solved a specific problem in one shot.
-  // Returns { username: { solved, submission } }
+  // Check if multiple users solved a problem in one shot. Returns { username: { solved, submission } }.
   async batchCheckSolved(usernames, problemSlug, limit = 50) {
     const acByUser = await this.batchGetRecentAcSubmissions(usernames, limit);
 

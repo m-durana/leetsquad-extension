@@ -24,7 +24,7 @@ Listens on `:8787` and writes `./leetsquad.db`. Hot-reloads on file change via `
 |---|---|---|
 | `PORT` | `8787` | HTTP listen port |
 | `DB_PATH` | `./leetsquad.db` | SQLite file path |
-| `TRUST_PROXY` | `2` | Proxy hops in front of the app (Cloudflare + nginx = 2) so rate limits key on the real client IP. Set to match your topology. |
+| `TRUST_PROXY` | `2` | Proxy in front of the app (Cloudflare + nginx = 2) so rate limits key on the client IP. Set to match your topology. Note: this is only non-forgeable while the origin is reachable exclusively through the proxy (see the firewall rules); direct origin access would let a client spoof `X-Forwarded-For`. |
 | `JWT_SECRET` | (required) | HS256 signing secret. Use ≥48 random bytes. |
 | `JWT_EXPIRES_IN` | `30d` | JWT TTL (vercel/ms format) |
 | `NONCE_TTL_SECONDS` | `600` | Auth nonce validity window |

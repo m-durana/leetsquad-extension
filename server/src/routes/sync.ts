@@ -109,8 +109,7 @@ async function applyContribution(
     slugs_json: string;
     updated_at: number;
   }>;
-  // Order union iteration so newer contributions overwrite older ones for
-  // id/lang/rt/mem. This contributor's just-updated map is treated as newest.
+  // Union newest-last so newer contributions win for id/lang/rt/mem.
   const otherSorted = otherRows
     .filter((row) => row.contributor_username !== contributor)
     .sort((a, b) => a.updated_at - b.updated_at)

@@ -90,9 +90,7 @@ const LeetSquadUtils = {
     return `${Math.floor(seconds / 604800)}w ago`;
   },
 
-  // Sanitize a string for safe HTML insertion in both element content AND
-  // attribute values. textContent->innerHTML only escapes &, <, >, so we must
-  // additionally escape quotes for the result to be safe inside attributes.
+  // Sanitize for safe HTML in content AND attributes (escapes &<> plus quotes).
   escapeHtml(str) {
     if (str === null || str === undefined) return '';
     return String(str)
@@ -103,9 +101,7 @@ const LeetSquadUtils = {
       .replace(/'/g, '&#039;');
   },
 
-  // Only allow https avatar URLs from remote profile data; anything else
-  // (data:, http:, off-scheme beacons) is dropped so callers fall back to the
-  // gradient placeholder.
+  // Only allow https avatar URLs; anything else falls back to the gradient placeholder.
   safeAvatarUrl(url) {
     if (!url) return '';
     try {

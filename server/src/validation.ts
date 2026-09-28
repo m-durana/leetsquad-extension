@@ -5,8 +5,7 @@ export function isValidUsername(u: unknown): u is string {
   return typeof u === 'string' && USERNAME_RE.test(u);
 }
 
-// LeetCode usernames are case-insensitive; store and compare them in a single
-// canonical (lowercase) form so rows never fragment across casings.
+// LeetCode usernames are case-insensitive; canonicalize to lowercase.
 export function canonicalUsername(u: string): string {
   return u.toLowerCase();
 }

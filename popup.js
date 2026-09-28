@@ -1,7 +1,6 @@
 // LeetSquad - Popup Script
 document.addEventListener('DOMContentLoaded', async () => {
-  // Free user-driven push on popup-open; background worker re-checks opt-in + token, fire-and-forget
-  // nudge and never blocks popup rendering.
+  // Fire-and-forget nudge on popup-open; the worker re-checks opt-in + token and never blocks rendering.
   try { browser.runtime?.sendMessage?.({ action: 'uploadMySolvedSet' }); } catch (e) {}
   try { browser.runtime?.sendMessage?.({ action: 'syncFriends' }); } catch (e) {}
   try { browser.runtime?.sendMessage?.({ action: 'syncDailyGoals' }); } catch (e) {}
@@ -349,8 +348,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // Detect logged-in user from leetcode.com (via the public globalData query).
-  // Surfaces a clear toast either way so the user knows whether sign-in helped.
+  // Detect the logged-in leetcode.com user (globalData query); toasts either way.
   async function detectMyUsername({ silent = false } = {}) {
     try {
       const status = await LeetCodeAPI.getCurrentUser();
@@ -395,10 +393,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     bootstrapFromSolutions(candidates[0]).catch(() => {});
   }
 
-  // Daily full self-import (auth-only path).
-  // Step 1: progress list gives every slug + lastSubmittedAt in one paginated query.
-  // Step 2: throttled backfill fetches questionSubmissionList per slug that's
-  // still missing rich metadata (id, lang, rt, mem). Runs ~1 req/sec to avoid bans.
+  // Daily full self-import (auth-only): progress list for all slugs, then ~1 req/sec backfill of missing {id,lang,rt,mem}.
   const SELF_IMPORT_KEY = 'leetsquad_self_import_at';
   const SELF_BACKFILL_KEY = 'leetsquad_self_backfill_cursor';
   const RICH_BACKFILL_BATCH = 20;
@@ -423,8 +418,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     backfillSelfRichMetadata(myUsername).catch(() => {});
   }
 
-  // Runs once per popup open. Walks slugs missing rich metadata and fetches a
-  // bounded batch from questionSubmissionList; the rest accretes on next opens.
+  // Once per popup open: fetch a bounded batch of slugs missing rich metadata; the rest accretes later.
   async function backfillSelfRichMetadata(myUsername) {
     const set = await StorageManager.getSolvedSet(myUsername);
     const slugs = Object.keys(set.slugs || {});
@@ -514,8 +508,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     friendsList.innerHTML = '<div class="loading">Loading friends...</div>';
     LeetSquadUtils.armSlowHint(friendsList);
 
-    // Use storage cache where valid; batch-fetch the rest in a single GraphQL
-    // request (LeetCodeAPI.batchGetUserProfiles handles in-memory dedup too).
+    // Use valid storage cache; batch-fetch the rest in one GraphQL request.
     const friendsData = await Promise.all(friends.map(async (username) => {
       const cached = await StorageManager.getCachedData(username);
       const cacheValid = cached && cached.fetchedAt && (Date.now() - cached.fetchedAt < LeetSquadUtils.CACHE_TTL_MS);
@@ -615,8 +608,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Current period for leaderboard
   let currentPeriod = 'all';
 
-  // Cached processed users from the most recent loadLeaderboard call, used
-  // by the sort animation to re-sort without going back to the network.
+  // Cached processed users from the last loadLeaderboard, so the sort animation can re-sort without refetching.
   let lastLeaderboardUsersData = null;
   let lastLeaderboardMyUsername = null;
   let lastLeaderboardCatalog = null;
@@ -632,8 +624,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return 0; // all time
   }
 
-  // recentSubmissionList omits difficulty; we join against the cached problem
-  // catalog (fetched from our server) to bucket by E/M/H.
+  // recentSubmissionList omits difficulty; join the cached catalog to bucket by E/M/H.
   function countSubmissionsInPeriod(submissions, periodStart, catalog) {
     if (!submissions?.submission) return { total: 0, easy: 0, medium: 0, hard: 0 };
 
@@ -660,8 +651,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return { total: uniqueProblems.size, easy, medium, hard };
   }
 
-  // Load leaderboard with stale-while-revalidate: render any cached data
-  // immediately (even if expired), then fetch fresh and re-render.
+  // Load leaderboard stale-while-revalidate: paint cache immediately, then fetch fresh and re-render.
   async function loadLeaderboard(period = currentPeriod) {
     currentPeriod = period;
 
@@ -725,9 +715,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       LeetSquadUtils.armSlowHint(leaderboardList);
     }
 
-    // Pull cache for everyone up front, then batch-fetch what's missing or
-    // missing-for-period in a single GraphQL round trip (or two if both
-    // profiles and submissions are needed).
+    // Pull cache up front, then batch-fetch what's missing in one round trip (two if profiles + submissions).
     const needsSubmissions = period !== 'all';
     const usersData = await Promise.all(allUsers.map(async (username) => {
       const cached = await StorageManager.getCachedData(username);
@@ -745,8 +733,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           needsSubmissions ? Promise.resolve(null) : Promise.resolve(null),
         ]);
 
-        // submissions still need per-user fetch because the wrapper expects
-        // statusDisplay shape; do it concurrently rather than serially
+        // submissions need a per-user fetch (statusDisplay shape); do it concurrently.
         const subsByUser = needsSubmissions
           ? Object.fromEntries(await Promise.all(missingUsers.map(async (u) => {
               try { return [u, await LeetCodeAPI.getRecentSubmissions(u)]; }
@@ -829,8 +816,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     lastLeaderboardMyUsername = myUsername;
   }
 
-  // Synchronous re-sort using the data already loaded by loadLeaderboard.
-  // Returns true if the DOM was rewritten, false if we need a full reload.
+  // Synchronous re-sort from already-loaded data; returns true if the DOM was rewritten, false to reload.
   function rerenderLeaderboardForPeriod(period) {
     if (!lastLeaderboardUsersData || lastLeaderboardUsersData.length === 0) return false;
     currentPeriod = period;
@@ -855,8 +841,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (processed.length === 0) return false;
 
-    // For periods that need submissions, fall back to async loadLeaderboard if
-    // any of the cached users is missing submissions data.
+    // For submission-based periods, fall back to async reload if any cached user lacks submissions.
     if (period !== 'all') {
       const anyMissingSubs = lastLeaderboardUsersData.some(u => u.data && !u.data.submissions?.submission);
       if (anyMissingSubs) return false;
@@ -896,11 +881,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Store current leaderboard data for animations
   let currentLeaderboardData = [];
 
-  // Animate leaderboard reordering using the FLIP technique. Critically, the
-  // measure / DOM-replace / invert / play sequence is fully synchronous; no
-  // await sits between measuring old positions and applying the inverse
-  // transforms. That used to cause a one-frame paint of the new natural
-  // positions, which looked like "rendered correctly, then snapped back".
+  // FLIP reorder: measure/replace/invert/play must stay fully synchronous (no await between measure and invert), or you get a one-frame snap-back.
   function animateLeaderboardSort(period) {
     const items = leaderboardList.querySelectorAll('.leaderboard-item');
     if (items.length === 0) {
@@ -915,9 +896,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       oldPositions.set(item.dataset.username, rect.top);
     });
 
-    // MUTATE synchronously from cached data. If the sync path can't satisfy
-    // (e.g. need submissions we haven't fetched yet), fall through to an
-    // async reload without animation.
+    // Mutate synchronously from cache; if it can't satisfy, fall through to an async reload without animation.
     const rewrote = rerenderLeaderboardForPeriod(period);
     if (!rewrote) {
       loadLeaderboard(period);
@@ -956,9 +935,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     });
 
-    // Clean up the animating class once the longest transition settles. We use
-    // transitionend on the first animated item if available, with a setTimeout
-    // safety net to make sure the class is always removed.
+    // Remove the animating class after the transition (transitionend, with a setTimeout safety net).
     const cleanup = () => {
       leaderboardList.classList.remove('animating');
       animations.forEach((item) => {
@@ -1411,14 +1388,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       await updateCloudSyncNavStatus();
       await renderVerifyBanner();
       showToast(`Connected as @${resp.username}`);
-      // Upload work itself runs entirely in the background worker. The popup
-      // only nudges it so the first sync happens immediately rather than at
-      // the next 30-min alarm tick.
+      // Upload runs in the worker; the popup just nudges it so the first sync isn't delayed to the next alarm.
       browser.runtime.sendMessage({ action: 'uploadMySolvedSet' });
 
-      // Restore / reconcile the friend list against the server. If the lists
-      // disagree, prompt the user to choose. Runs after verify-success so
-      // the JWT is in place.
+      // Reconcile the friend list with the server (prompt on conflict); runs after verify so the JWT is set.
       reconcileFriendsAfterVerify().catch((e) => console.error('friend reconcile:', e));
     } catch (e) {
       cloudVerifyErrorEl.textContent = 'Verification failed. Try again.';
@@ -1607,11 +1580,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await applyMergedFriendList(merged);
   }
 
-  // The login card is a collapsible <details>. Its summary label is the
-  // only thing that changes between signed-in and signed-out states, so
-  // both states share the same compact layout. We cache the last known
-  // signed-in username so the label can render correctly on popup open
-  // before the live getCurrentUser check returns.
+  // The login card is a <details>; only its summary label changes by auth state. Cache the last username so the label renders before getCurrentUser returns.
   const SIGNED_IN_CACHE_KEY = 'cachedSignedInUser';
   const SIGNED_OUT_LABEL = 'Sign in (optional)';
 
@@ -1643,9 +1612,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Show the user the current keyboard bindings (read via browser.commands.getAll)
-  // and link them out to the browser's shortcuts page (chrome://extensions/shortcuts
-  // on Chrome, about:addons on Firefox). Extensions cannot rewrite their own bindings.
+  // Show current bindings and link out to the browser's shortcuts page (extensions can't rewrite them).
   async function renderShortcuts() {
     if (!browser?.commands?.getAll) return;
     try {
@@ -1661,8 +1628,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('edit-shortcuts-link')?.addEventListener('click', (e) => {
     e.preventDefault();
-    // Firefox has no deep link to the shortcuts page; about:addons is the closest
-    // (users manage shortcuts from its gear menu). Chrome deep-links directly.
+    // Firefox has no shortcuts deep link; about:addons is closest. Chrome deep-links.
     const isFirefox = browser.runtime.getURL('').startsWith('moz-extension://');
     browser.tabs.create({ url: isFirefox ? 'about:addons' : 'chrome://extensions/shortcuts' });
   });
@@ -1771,9 +1737,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     goalStreak.textContent = `🔥 ${goal.streak || 0} day streak`;
   }
 
-  // Toast notification. Docks as a banner immediately above the daily-goal
-  // footer; red on error, green on success. Accepts a few error sentinels so
-  // a stray `true` from a call site doesn't silently render as a success.
+  // Toast banner above the daily-goal footer; red on error, green on success. Guards against a stray truthy value rendering as success.
   function customConfirm(body, opts = {}) {
     return new Promise((resolve) => {
       const modal = document.getElementById('confirm-modal');
@@ -2075,9 +2039,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     }
 
-    // Fallback: If solved endpoint doesn't return arrays, try using GraphQL submissions
-    // NOTE: LeetCode's GraphQL API limits recentAcSubmissionList to ~20-50 problems max
-    // So this will only show recent problems, not full history
+    // Fallback to GraphQL submissions if the solved endpoint returns no arrays; recentAcSubmissionList is capped at ~20-50 recent.
     if (mySolved.length === 0 || friendSolved.length === 0) {
       if (settings.debugMode) {
         console.log('[LeetSquad Debug] Falling back to GraphQL submissions for solved problems');
@@ -2289,9 +2251,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateCloudSyncNavStatus().catch(() => {});
   surfaceSyncErrorIfRecent().catch(() => {});
 
-  // First-run: if no username is set yet and the user happens to already be
-  // signed in to leetcode.com, fill it in silently. This is what makes the
-  // empty-state stop being a hard prerequisite for everything else.
+  // First-run: if no username set but signed in to leetcode.com, fill it silently so the empty-state isn't a hard prerequisite.
   if (!myUsernameInput.value) {
     detectMyUsername({ silent: true }).catch(() => {});
   } else {

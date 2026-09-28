@@ -164,9 +164,7 @@
       const manualCheckBtn = content.querySelector('.manual-check-btn');
       if (manualCheckBtn) {
         manualCheckBtn.addEventListener('click', (e) => {
-          // stopPropagation: handleManualCheck replaces innerHTML synchronously,
-          // which detaches this button before click bubbles to the document
-          // outside-click handler (which would then collapse the widget).
+          // stopPropagation: handleManualCheck rewrites innerHTML synchronously, detaching this button before the outside-click handler could collapse the widget.
           e.preventDefault();
           e.stopPropagation();
           handleManualCheck(problemSlug);
@@ -185,9 +183,7 @@
     syncExpandedHeight(widget);
   }
 
-  // Appends a small "N known solves across your squad, refreshed Xm ago" line
-  // so users can see the cache is growing in the background even when this
-  // particular problem doesn't have a hit yet.
+  // Appends a "N known solves across your squad, refreshed Xm ago" line so the growing cache is visible.
   async function renderCacheFreshness(content) {
     try {
       const friends = await StorageManager.getFriends();
@@ -302,8 +298,7 @@
     }
   }
 
-  // Main function to load and display squad data.
-  // Uses stale-while-revalidate: shows cached data immediately, then refreshes.
+  // Load and display squad data; stale-while-revalidate (show cache, then refresh).
   async function loadSquadData() {
     const problemSlug = getProblemSlug();
     if (!problemSlug) return;
@@ -350,8 +345,7 @@
         await Promise.all(allUsers.map(u => CloudSync.fetchAndMergeFriend(u).catch(() => null)));
       }
 
-      // Cached slug-set is an instant "yes" without an API call. Presence is what
-      // counts; ts may be 0 for slugs pulled via cloud sync without timestamps.
+      // Cached slug-set is an instant yes; presence counts, ts may be 0 for cloud-synced slugs.
       const slugSetResults = await Promise.all(allUsers.map(async (u) => {
         const inSet = await StorageManager.hasSolvedSlug(u, problemSlug);
         const ts = await StorageManager.getSolvedSlugTimestamp(u, problemSlug);
@@ -367,8 +361,7 @@
         LeetCodeAPI.batchGetUserProfiles(allUsers).catch(() => ({})),
       ]);
 
-      // Merge anything the API discovered into the slug set so future loads
-      // are instant. This is the accretion loop that makes the cache grow.
+      // Merge API discoveries into the slug set so future loads are instant (the accretion loop).
       await Promise.all(allUsers.map(async (u) => {
         const sub = solvedMap[u]?.submission;
         if (sub?.titleSlug && sub?.timestamp) {
@@ -417,9 +410,7 @@
         return result;
       }));
 
-      // Step 4: Persist cache for every user we fetched a profile for, not
-      // just the solved ones. This keeps the popup warm regardless of whether
-      // a given friend happened to solve the current problem.
+      // Persist cache for every fetched profile, not just solvers, so the popup stays warm.
       for (const username of allUsers) {
         if (profiles[username]) {
           const existing = await StorageManager.getCachedData(username)
@@ -609,8 +600,7 @@
       }
     });
 
-    // Click outside to collapse in minimized mode. Remove any prior handler
-    // first so SPA navigations don't stack listeners on document.
+    // Click-outside to collapse (minimized mode); remove any prior handler so SPA navs don't stack listeners.
     if (outsideClickHandler) {
       document.removeEventListener('click', outsideClickHandler);
     }
@@ -656,15 +646,10 @@
     }
   }
 
-  // Monitor for successful submissions. We try to scope the observer to a
-  // narrower container than <body> to avoid firing on every SPA mutation; fall
-  // back to body if LeetCode's container layout changes.
+  // Watch for successful submissions; scope the observer narrower than <body>, falling back to body if layout changes.
   let lastReportedSlug = null;
 
-  // Single report path for both signals: the MAIN-world interceptor (rich data,
-  // preferred) and the DOM-observer fallback (slug only). Debounced once per
-  // slug per page load; reset on SPA navigation. Only our own logged-in
-  // submissions ever reach here.
+  // Single report path for both signals (MAIN-world interceptor + DOM fallback); debounced per slug per page load, own submissions only.
   async function reportSolved(problemSlug, rich) {
     if (!problemSlug) return;
     const key = `${problemSlug}:${location.href}`;
@@ -677,9 +662,7 @@
       difficulty: detectProblemDifficulty()
     });
 
-    // Merge rich {id, lang, rt, mem, ts} from our own submission straight into
-    // our own solved set so the widget reflects it now instead of waiting for
-    // the next recentAcSubmissionList alarm.
+    // Merge our own submission's {id,lang,rt,mem,ts} into our solved set immediately, before the next alarm.
     if (rich && (rich.id || rich.lang || rich.runtime || rich.memory)) {
       try {
         const myUsername = await StorageManager.getMyUsername();
@@ -697,8 +680,7 @@
     }
   }
 
-  // MAIN-world interceptor relays accepted submissions here. Trust only
-  // same-window messages carrying our tag.
+  // MAIN-world interceptor relays accepted submissions here; trust only same-window messages with our tag.
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
     const d = event.data;
@@ -719,8 +701,7 @@
       const successElement = document.querySelector('[data-e2e-locator="submission-result"]');
       if (!successElement || !successElement.textContent.includes('Accepted')) return;
 
-      // Fallback only: the interceptor usually reports first and reportSolved
-      // dedups by slug+href, so this no-ops when interception worked.
+      // Fallback only; reportSolved dedups by slug+href, so this no-ops when interception worked.
       reportSolved(getProblemSlug(), null);
     };
 
@@ -733,8 +714,7 @@
     }
   }
 
-  // Read the difficulty badge from the problem page. LeetCode renders one of
-  // "Easy", "Medium", "Hard" near the title. Returns lowercase string or null.
+  // Read the difficulty badge (Easy/Medium/Hard) from the page; returns lowercase or null.
   function detectProblemDifficulty() {
     const candidates = document.querySelectorAll('[class*="difficulty"], [class*="Difficulty"], div[diff], span');
     for (const el of candidates) {
@@ -784,9 +764,7 @@
     // Start monitoring submissions
     monitorSubmissions();
 
-    // Watch for SPA navigation via history API patching + popstate. This is
-    // dramatically cheaper than a full <body> subtree MutationObserver, which
-    // would re-fire on every DOM mutation on LeetCode's heavy SPA.
+    // Watch SPA navigation via history patching + popstate; far cheaper than a full <body> observer.
     const handleNavigation = () => {
       if (!isExtensionContextValid()) {
         disconnectObservers();

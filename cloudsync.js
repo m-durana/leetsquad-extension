@@ -88,8 +88,7 @@ const CloudSync = {
     await StorageManager.set(StorageManager.KEYS.CLOUD_SYNC_ENABLED, !!on);
   },
 
-  // Fetch a friend's cloud-published solved set and merge it into local
-  // storage. Returns { ok, updated_at, count } or { ok: false, error }.
+  // Fetch a friend's published solved set and merge locally. Returns { ok, updated_at, count } or { ok:false, error }.
   async fetchAndMergeFriend(username) {
     try {
       const r = await fetch(`${this.BASE}/user/${encodeURIComponent(username)}`);
@@ -127,8 +126,7 @@ const CloudSync = {
     return await StorageManager.get(StorageManager.KEYS.CLOUD_SYNC_TOKEN);
   },
 
-  // Returns the server's stored friend list, or null if cloud sync is off /
-  // unverified / a fetch error happens. Never throws.
+  // Server's stored friend list, or null if sync is off/unverified/errored. Never throws.
   async getServerFriends() {
     const token = await this._jwtIfEnabled();
     if (!token) return null;
@@ -144,8 +142,7 @@ const CloudSync = {
     }
   },
 
-  // Replaces the server's friend list with the given array. Returns the
-  // canonical list the server kept (deduped, validated), or null on failure.
+  // Replace the server's friend list; returns the canonical list the server kept, or null on failure.
   async putServerFriends(friends) {
     const token = await this._jwtIfEnabled();
     if (!token) return null;
@@ -224,9 +221,7 @@ const CloudSync = {
     return merged;
   },
 
-  // Fetch the global problem catalog from our server, persist locally with a
-  // 24h TTL. Public endpoint, no auth required. Refreshes only when stale or
-  // missing; safe to call on every popup open.
+  // Fetch the global problem catalog (public), persist locally with a 24h TTL; safe to call every popup open.
   async fetchProblemCatalogIfStale() {
     const CATALOG_TTL_MS = 24 * 60 * 60_000;
     try {
@@ -248,8 +243,7 @@ const CloudSync = {
     }
   },
 
-  // Disconnect locally: stop syncing. Server data is retained by design;
-  // users request data deletion via a GitHub issue.
+  // Disconnect locally only; server data is retained by design (delete via Settings > Delete my data).
   async disconnect() {
     await this.clearToken();
     await this.clearApiKey();

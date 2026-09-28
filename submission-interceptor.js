@@ -1,14 +1,5 @@
-// MAIN-world submission interceptor.
-//
-// Runs in the page's own JS context (world: "MAIN") at document_start so it can
-// monkey-patch fetch/XHR before LeetCode issues any submission traffic. It does
-// NOT use the DOM "Accepted" badge (hashed classes churn); instead it watches the
-// user's own authenticated submission-check responses and reports the result.
-//
-// Scope by design: this only ever sees the logged-in user's OWN submissions made
-// on-page. It is not a friend-data path and not a history-import path. It has no
-// chrome.* access, so it hands results to the isolated content script via
-// window.postMessage; content.js validates event.source === window before trusting.
+// MAIN-world interceptor: patches fetch/XHR at document_start to catch the user's own accepted submission-check responses (not the DOM badge).
+// Only ever sees the logged-in user's own submissions. No chrome.* access; posts results to content.js via window.postMessage, which validates event.source === window.
 (function () {
   'use strict';
   if (window.__leetsquadInterceptorInstalled) return;
@@ -17,15 +8,13 @@
   const CHECK_RE = /\/submissions\/detail\/(\d+)\/check\/?/;
   const TAG = 'leetsquad-interceptor';
 
-  // Slug for the problem being submitted. The check response doesn't carry a
-  // reliable titleSlug, so we read it from the page URL the submit happened on.
+  // Slug from the page URL; the check response has no reliable titleSlug.
   function currentSlug() {
     const m = window.location.pathname.match(/\/problems\/([^/]+)/);
     return m ? m[1] : null;
   }
 
-  // Inspect a parsed submission-check JSON. Emits only on a finished, accepted
-  // run. status_code 10 === Accepted; state SUCCESS means polling is done.
+  // Inspect submission-check JSON; emit only on a finished accepted run (status_code 10, state SUCCESS).
   function handleCheckPayload(url, json) {
     if (!json || json.state !== 'SUCCESS') return;
     const accepted = json.status_code === 10 || json.status_msg === 'Accepted';

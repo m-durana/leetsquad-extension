@@ -44,8 +44,7 @@ export function tieredLimiter(limits: TierLimits): RequestHandler {
 
   return (req: ApiKeyedRequest, res: Response, next: NextFunction) => {
     if (req.apiKey) return keyedLimiter(req, res, next);
-    // anonPerWindow=0 means "this route requires a key"; let requireApiKey reject downstream
-    // with the proper missing_key/invalid_key envelope instead of a misleading 429.
+    // anonPerWindow=0 means key-required; let requireApiKey reject downstream, not a misleading 429.
     if (limits.anonPerWindow === 0) return next();
     anonLimiter(req, res, next);
   };
@@ -66,8 +65,7 @@ export function fixedLimiter(opts: {
     legacyHeaders: false,
     keyGenerator: (req) => {
       if (opts.by === 'jwt') {
-        // Key on the verified subject so rotating bearer values can't mint fresh
-        // buckets; fall back to IP for missing/invalid tokens.
+        // Key on the verified subject (IP fallback) so bearer rotation can't reset the bucket.
         const m = /^Bearer (.+)$/.exec(req.header('authorization') || '');
         if (m) {
           try {

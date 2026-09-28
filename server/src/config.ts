@@ -17,8 +17,7 @@ function requiredSecret(name: string, minLength: number): string {
 export const config = {
   port: Number(process.env.PORT ?? 8787),
   dbPath: process.env.DB_PATH ?? './leetsquad.db',
-  // Number of proxy hops in front of the app, so Express picks the real client
-  // IP for rate limiting. Production is Cloudflare -> nginx = 2. Override per env.
+  // Proxy hops in front of the app (prod: Cloudflare + nginx = 2).
   trustProxy: Number(process.env.TRUST_PROXY ?? 2),
   jwtSecret: requiredSecret('JWT_SECRET', 32),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '30d',

@@ -1,12 +1,15 @@
+import { z } from 'zod';
+
 const LEETCODE_GRAPHQL = 'https://leetcode.com/graphql/';
 const FETCH_TIMEOUT_MS = 10_000;
+// LeetCode has ~4,000+; reject an implausibly small (truncated) result.
+const MIN_CATALOG_SIZE = 1000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// fetch with an abort-based timeout so a hung LeetCode connection can't block
-// request-handling threads indefinitely.
+// fetch with an abort-based timeout so a hung connection can't hang the server.
 async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -91,8 +94,25 @@ export interface CatalogProblem {
   acRate: number;
 }
 
-// Paginates the public problemset endpoint (server-capped at 100/page) and
-// returns the full catalog. Throws if any page fails.
+// Fail hard on an unexpected shape instead of persisting bad rows.
+const catalogQuestionSchema = z.object({
+  titleSlug: z.string(),
+  title: z.string(),
+  questionFrontendId: z.string(),
+  difficulty: z.string(),
+  isPaidOnly: z.boolean(),
+  acRate: z.number(),
+});
+const catalogPageSchema = z.object({
+  data: z.object({
+    problemsetQuestionList: z.object({
+      totalNum: z.number(),
+      questions: z.array(catalogQuestionSchema),
+    }),
+  }),
+});
+
+// Paginates the public problemset endpoint (100/page). Throws on any failure.
 export async function fetchProblemCatalog(): Promise<CatalogProblem[]> {
   const PAGE = 100;
   const out: CatalogProblem[] = [];
@@ -114,39 +134,25 @@ export async function fetchProblemCatalog(): Promise<CatalogProblem[]> {
       }),
     });
     if (!res.ok) throw new Error(`LeetCode catalog HTTP ${res.status}`);
-    const json = (await res.json()) as {
-      data?: {
-        problemsetQuestionList?: {
-          totalNum?: number;
-          questions?: Array<{
-            titleSlug: string;
-            title: string;
-            questionFrontendId: string;
-            difficulty: string;
-            isPaidOnly: boolean;
-            acRate: number;
-          }>;
-        } | null;
-      };
-      errors?: unknown;
-    };
-    throwOnGraphqlErrors(json);
-    const r = json.data?.problemsetQuestionList;
-    if (!r || !Array.isArray(r.questions)) break;
-    if (typeof r.totalNum === 'number') total = r.totalNum;
+    const json = await res.json();
+    throwOnGraphqlErrors(json as { errors?: unknown });
+    const r = catalogPageSchema.parse(json).data.problemsetQuestionList;
+    total = r.totalNum;
     for (const q of r.questions) {
-      if (!q?.titleSlug) continue;
       out.push({
         slug: q.titleSlug,
         title: q.title,
         id: parseInt(q.questionFrontendId, 10) || 0,
         difficulty: q.difficulty,
-        paid: !!q.isPaidOnly,
-        acRate: typeof q.acRate === 'number' ? Math.round(q.acRate * 100) / 100 : 0,
+        paid: q.isPaidOnly,
+        acRate: Math.round(q.acRate * 100) / 100,
       });
     }
     if (r.questions.length === 0) break;
     skip += PAGE;
+  }
+  if (out.length < MIN_CATALOG_SIZE) {
+    throw new Error(`catalog too small: got ${out.length}, expected >= ${MIN_CATALOG_SIZE}`);
   }
   return out;
 }

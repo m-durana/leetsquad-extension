@@ -20,14 +20,12 @@ const StorageManager = {
     PROBLEM_CATALOG: 'leetsquad_problem_catalog'
   },
 
-  // Cache expiry time. Unified with the in-memory cache via LeetSquadUtils
-  // so a storage hit is no longer invalidated by a stricter caller check.
+  // Cache expiry, unified with the in-memory cache via LeetSquadUtils.
   CACHE_EXPIRY: (typeof LeetSquadUtils !== 'undefined' && LeetSquadUtils?.CACHE_TTL_MS)
     || (typeof window !== 'undefined' && window.LeetSquadUtils?.CACHE_TTL_MS)
     || 10 * 60 * 1000,
 
-  // Get data from storage. Returns null only when the key is genuinely unset;
-  // falsy values like `false` or `0` round-trip intact.
+  // Get from storage; null only when the key is unset (false/0 round-trip intact).
   async get(key) {
     const result = await browser.storage.local.get([key]);
     return result[key] !== undefined ? result[key] : null;
@@ -97,8 +95,7 @@ const StorageManager = {
     await this.set(this.KEYS.CACHE, cache);
   },
 
-  // Get cached data even if expired (for stale-while-revalidate pattern).
-  // Returns { data, stale: boolean } or null if no cache entry exists.
+  // Cached data even if expired (stale-while-revalidate); returns { data, stale } or null.
   async getCachedDataWithStale(username, type = 'full') {
     const cache = (await this.get(this.KEYS.CACHE)) || {};
     const key = `${username}:${type}`;
@@ -288,8 +285,7 @@ const StorageManager = {
     return !!set.slugs[titleSlug];
   },
 
-  // Returns the timestamp (sec) we have on file for this username/slug, or
-  // null. Used so the widget can render "solved Xd ago" even from cached data.
+  // Timestamp (sec) on file for username/slug, or null; powers "solved Xd ago" from cache.
   async getSolvedSlugTimestamp(username, titleSlug) {
     const set = await this.getSolvedSet(username);
     return set.slugs[titleSlug] || null;
@@ -300,10 +296,7 @@ const StorageManager = {
     return Object.keys(set.slugs).length;
   },
 
-  // Merge a batch of entries into a user's set. Each entry:
-  //   { titleSlug, timestamp?, id?, lang?, rt?, mem? }
-  // Keeps the latest timestamp; preserves existing id/lang/rt/mem when an
-  // incoming entry omits them. Persists in one storage write.
+  // Merge a batch of { titleSlug, timestamp?, id?, lang?, rt?, mem? } into a user's set (latest ts, preserve existing fields, one write).
   async mergeSolvedSlugs(username, entries) {
     if (!username || !Array.isArray(entries) || entries.length === 0) return;
     const all = await this.getAllSolvedSets();
@@ -338,8 +331,7 @@ const StorageManager = {
     return set.submissionMeta?.[titleSlug] || null;
   },
 
-  // ===== Problem catalog (server-cached snapshot of LeetCode problemset) =====
-  // Shape: { updated_at, total_count, problems: { [slug]: { title, id, difficulty, paid, acRate } } }
+  // Problem catalog snapshot. Shape: { updated_at, total_count, problems: { [slug]: { title, id, difficulty, paid, acRate } } }.
 
   async getProblemCatalog() {
     return await this.get(this.KEYS.PROBLEM_CATALOG);

@@ -1,9 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 
-// The catalog tests mock fetchProblemCatalog, so a wrong GraphQL field name (which
-// makes LeetCode 400 the request in production) is invisible to them. This guards
-// the real query string against the schema field renames that broke it once.
+// The catalog tests mock the fetch, so guard the real query's field names here.
 const src = readFileSync('src/leetcode.ts', 'utf8');
 
 describe('problemset catalog query field names', () => {

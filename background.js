@@ -5,8 +5,7 @@ try { importScripts('browser-polyfill.js', 'shared.js', 'storage.js', 'achieveme
 const LEETCODE_GRAPHQL = 'https://leetcode.com/graphql';
 function cloudBase() { return (typeof LeetSquadUtils !== 'undefined' && LeetSquadUtils.CLOUD_BASE) || 'https://leetsquad.miro.build'; }
 
-// Under Jest (NODE_ENV=test) skip real backoff waits so retry tests don't idle
-// for seconds each; production (no process/NODE_ENV) keeps the 2s base delay.
+// Under Jest, skip real backoff waits; prod keeps the 2s base delay.
 const _BG_IS_TEST_ENV = typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test';
 
 // Retry config for background fetches
@@ -30,8 +29,7 @@ browser.runtime.onInstalled.addListener(async (details) => {
     if (friends.length > 0) {
       refreshSolvedSets(friends).catch(e => console.error('initial refresh:', e));
     }
-    // Seed the notification checkpoint so the first poll doesn't flood the user
-    // with notifications for every friend's last 5 accepted submissions.
+    // Seed the checkpoint so the first poll doesn't flood notifications.
     if (!data.leetsquad_last_check) {
       await browser.storage.local.set({ leetsquad_last_check: Date.now() });
     }
@@ -226,9 +224,7 @@ async function fetchUserProfile(username) {
   };
 }
 
-// Warm the storage cache with fresh profiles for every friend in one
-// batched GraphQL request. The popup reads from this cache on open, so a
-// periodic warm-up makes the first paint feel instant.
+// Warm the cache with fresh friend profiles in one batched query so popup-open is instant.
 async function warmProfileCache(friends) {
   if (!friends || friends.length === 0) return;
 
@@ -304,12 +300,10 @@ async function checkForNewSubmissions() {
     const settings = data.leetsquad_settings || {};
     const lastCheck = data.leetsquad_last_check || 0;
 
-    // Warm the cache on every periodic check, even when notifications are off.
-    // This is what makes popup-open feel instant for users.
+    // Warm the cache every check (even with notifications off) so popup-open is instant.
     warmProfileCache(friends).catch(e => console.error('warmProfileCache:', e));
 
-    // Grow the persistent solved-slug set so the widget can answer "did X
-    // solve Y" for older problems beyond LeetCode's ~20-recent API cap.
+    // Grow the persistent solved-slug set past LeetCode's ~20-recent cap.
     refreshSolvedSets(friends)
       .then(() => uploadMySolvedSetIfOptedIn())
       .catch(e => console.error('refreshSolvedSets:', e));
@@ -319,8 +313,7 @@ async function checkForNewSubmissions() {
     if (!settings.notifications || friends.length === 0) return;
 
     const newSubmissions = [];
-    // Snapshot the window start before polling so ACs that land mid-poll aren't
-    // missed, and only advance the checkpoint if every friend polled cleanly.
+    // Snapshot the window start so ACs that land mid-poll aren't missed.
     const checkpoint = Date.now();
     let anyFailure = false;
 
@@ -341,8 +334,7 @@ async function checkForNewSubmissions() {
       }
     }
 
-    // Only advance the checkpoint on a fully successful sweep; otherwise keep the
-    // old window so a friend's AC during a failed poll is caught next time.
+    // Advance only on a clean sweep, so a failed poll's ACs are caught next time.
     if (!anyFailure) {
       await browser.storage.local.set({ leetsquad_last_check: checkpoint });
     }
@@ -478,8 +470,7 @@ async function lcSkillsOp(op, value, tabId) {
   return result || { error: 'no_result' };
 }
 
-// Upload my full solved-slug set if I'm opted in and have a live token.
-// Runs from the periodic alarm and after explicit verify/refresh. No-op otherwise.
+// Upload my full solved-slug set if opted in with a live token; no-op otherwise.
 async function uploadMySolvedSetIfOptedIn() {
   try {
     const data = await browser.storage.local.get([
@@ -521,9 +512,7 @@ async function uploadMySolvedSetIfOptedIn() {
     const selfSet = allSets[username] || { slugs: {} };
     const slugs = buildRichMap(selfSet);
 
-    // Push accreted friend observations; server unions contributions from many sensors,
-    // and every entry is bounded by the target's public `userProblemsSolved`
-    // count so a bad-faith sensor can't inflate a target's record.
+    // Push accreted friend observations; server unions many sensors, each bounded by the target's public solved count.
     const friendList = (data.leetsquad_friends || []).filter(
       (f) => f && f.toLowerCase() !== username.toLowerCase()
     );
@@ -944,8 +933,7 @@ async function updateDailyGoal(problemSlug, difficulty) {
   }
 }
 
-// Keyboard shortcut: toggle the widget on the active LeetCode tab.
-// _execute_action is handled by Chrome automatically (opens the popup).
+// Keyboard shortcut: toggle the widget on the active LeetCode tab (_execute_action opens the popup, handled by Chrome).
 browser.commands?.onCommand.addListener(async (command) => {
   if (command !== 'toggle-widget') return;
   try {
