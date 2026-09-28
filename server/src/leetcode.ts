@@ -73,9 +73,9 @@ const PROBLEMSET_QUERY = `
       questions: data {
         titleSlug
         title
-        frontendQuestionId
+        questionFrontendId
         difficulty
-        paidOnly
+        isPaidOnly
         acRate
       }
     }
@@ -121,9 +121,9 @@ export async function fetchProblemCatalog(): Promise<CatalogProblem[]> {
           questions?: Array<{
             titleSlug: string;
             title: string;
-            frontendQuestionId: string;
+            questionFrontendId: string;
             difficulty: string;
-            paidOnly: boolean;
+            isPaidOnly: boolean;
             acRate: number;
           }>;
         } | null;
@@ -139,9 +139,9 @@ export async function fetchProblemCatalog(): Promise<CatalogProblem[]> {
       out.push({
         slug: q.titleSlug,
         title: q.title,
-        id: parseInt(q.frontendQuestionId, 10) || 0,
+        id: parseInt(q.questionFrontendId, 10) || 0,
         difficulty: q.difficulty,
-        paid: !!q.paidOnly,
+        paid: !!q.isPaidOnly,
         acRate: typeof q.acRate === 'number' ? Math.round(q.acRate * 100) / 100 : 0,
       });
     }

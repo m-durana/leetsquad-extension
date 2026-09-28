@@ -12,7 +12,7 @@ import { config } from './config';
 export function createApp() {
   const app = express();
 
-  app.set('trust proxy', 1);
+  app.set('trust proxy', config.trustProxy);
   app.use(express.json({ limit: '256kb' }));
 
   app.use(
