@@ -62,8 +62,13 @@ describe('computeStreak', () => {
     expect(computeStreak(goals, dayKey(0))).toBe(1);
   });
 
-  it('is 0 when today has no completions', () => {
+  it('grace day: counts through yesterday when today is not done yet', () => {
     const goals = { [dayKey(1)]: { completed: 1 } };
+    expect(computeStreak(goals, dayKey(0))).toBe(1);
+  });
+
+  it('is 0 when neither today nor yesterday has a solve', () => {
+    const goals = { [dayKey(2)]: { completed: 1 } };
     expect(computeStreak(goals, dayKey(0))).toBe(0);
   });
 });

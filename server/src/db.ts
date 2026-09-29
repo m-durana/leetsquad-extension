@@ -261,10 +261,7 @@ export interface SlugRecord {
 }
 export type SlugMap = Record<string, SlugRecord>;
 
-// Reads tolerate three historical shapes:
-//   v1:    ["a","b"]                     -> {a:{}, b:{}}
-//   v1.5:  {"a": 1700000000}             -> {a:{ts:1700000000}}
-//   v2:    {"a": {ts, id, lang, rt, mem}} (as-is)
+// Reads tolerate 3 historical shapes: v1 ["a"] -> {a:{}}; v1.5 {a:ts} -> {a:{ts}}; v2 {a:{ts,id,lang,rt,mem}} as-is.
 export function parseSlugsJson(json: string | null | undefined): SlugMap {
   if (!json) return {};
   let v: unknown;

@@ -220,7 +220,7 @@ describe('StorageManager settings', () => {
     expect(settings.showOnProblemList).toBe(true);
     expect(settings.notifications).toBe(true);
     expect(settings.debugMode).toBe(false);
-    expect(settings.dailyTarget).toBe(3);
+    expect(settings.dailyTarget).toBe(1);
   });
 
   test('updateSettings merges partial updates', async () => {
@@ -243,7 +243,7 @@ describe('StorageManager settings', () => {
 describe('StorageManager daily goals', () => {
   test('getDailyGoals returns default goal for today', async () => {
     const goal = await SM.getDailyGoals();
-    expect(goal.target).toBe(3);
+    expect(goal.target).toBe(1);
     expect(goal.completed).toBe(0);
     expect(goal.problems).toEqual([]);
     expect(goal.streak).toBe(0);

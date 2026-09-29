@@ -1,6 +1,9 @@
 // LeetSquad - Background Service Worker
 
-try { importScripts('browser-polyfill.js', 'shared.js', 'storage.js', 'achievements.js'); } catch (e) { console.error('importScripts:', e); }
+// Chrome service worker loads deps here; Firefox's event page loads them via manifest background.scripts.
+if (typeof importScripts === 'function') {
+  try { importScripts('browser-polyfill.js', 'shared.js', 'storage.js', 'achievements.js'); } catch (e) { console.error('importScripts:', e); }
+}
 
 const LEETCODE_GRAPHQL = 'https://leetcode.com/graphql';
 function cloudBase() { return (typeof LeetSquadUtils !== 'undefined' && LeetSquadUtils.CLOUD_BASE) || 'https://leetsquad.miro.build'; }
@@ -66,7 +69,7 @@ async function updateGoalBadge() {
     const goals = data?.leetsquad_daily_goals || {};
     const today = new Date().toISOString().split('T')[0];
     const day = goals[today] || {};
-    const target = day.target || settings.dailyTarget || 3;
+    const target = day.target || settings.dailyTarget || 1;
     const done = (day.completed || 0) >= target;
     await browser.action.setBadgeBackgroundColor({ color: '#e94560' });
     await browser.action.setBadgeText({ text: done ? '' : '1' });
@@ -504,8 +507,7 @@ function payloadSignature(obj) {
   return `${s.length}:${h}`;
 }
 
-// Upload my full solved-slug set if opted in with a live token; no-op otherwise.
-// force=true bypasses the unchanged-payload skip (used after verify / manual retry).
+// Upload my full solved-slug set if opted in; force=true bypasses the unchanged-payload skip.
 async function uploadMySolvedSetIfOptedIn(force = false) {
   try {
     const data = await browser.storage.local.get([
@@ -972,31 +974,42 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-// One-time: seed daily-goal days so our streak starts from the user's current LeetCode streak.
-async function carryOverLeetCodeStreak(username) {
-  const myUsername = username
-    || await StorageManager.getMyUsername()
-    || await StorageManager.get('leetsquad_cloud_sync_username');
-  if (!myUsername) return { ok: false, error: 'no_username' };
-
-  const query = `
-    query userProfileCalendar($username: String!) {
-      matchedUser(username: $username) { userCalendar { streak } }
-    }
-  `;
-  const data = await graphqlFetch(query, { username: myUsername });
-  const streak = data?.matchedUser?.userCalendar?.streak || 0;
+// Carry over the LeetCode Daily Challenge streak (AC-based) by seeding that many days.
+async function carryOverLeetCodeStreak() {
+  // streakCounter is for the logged-in user (no username), so the request must send cookies.
+  let streak = 0, currentDayCompleted = false;
+  try {
+    const res = await fetch(LEETCODE_GRAPHQL, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: 'query getStreakCounter { streakCounter { streakCount currentDayCompleted } }',
+        operationName: 'getStreakCounter',
+        variables: {},
+      }),
+    });
+    if (!res.ok) return { ok: false, error: `http_${res.status}` };
+    const j = await res.json();
+    streak = j?.data?.streakCounter?.streakCount || 0;
+    currentDayCompleted = !!j?.data?.streakCounter?.currentDayCompleted;
+  } catch (e) {
+    return { ok: false, error: 'network' };
+  }
   if (streak <= 0) return { ok: true, streak: 0, applied: 0 };
 
   const store = await browser.storage.local.get(['leetsquad_daily_goals']);
   const goals = store.leetsquad_daily_goals || {};
   const settings = await StorageManager.getSettings();
-  const target = settings.dailyTarget || 3;
+  const target = settings.dailyTarget || 1;
+
+  // If today's daily isn't done yet, the streak runs through yesterday.
+  const cursor = new Date();
+  if (!currentDayCompleted) cursor.setUTCDate(cursor.getUTCDate() - 1);
 
   let applied = 0;
-  const d = new Date();
   for (let i = 0; i < streak; i++) {
-    const key = d.toISOString().split('T')[0];
+    const key = cursor.toISOString().split('T')[0];
     const day = goals[key];
     if (!day || !(day.completed > 0)) {
       goals[key] = {
@@ -1007,34 +1020,40 @@ async function carryOverLeetCodeStreak(username) {
       };
       applied++;
     }
-    d.setUTCDate(d.getUTCDate() - 1);
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
   }
+
   await browser.storage.local.set({ leetsquad_daily_goals: goals });
   return { ok: true, streak, applied };
 }
 
-// Update daily goal when problem is solved
+// Recompute today's goal from LeetCode's actual submissions. Timestamp-checked so viewing an old
+// accepted submission never counts, and first-time solves only (re-solving an old problem doesn't count).
 async function updateDailyGoal(problemSlug, difficulty) {
   try {
-    // Re-solving a problem you already had solved does not count toward the goal.
-    // This runs before reportSolved merges the new solve, so the set reflects prior days only.
     const myUsername = await StorageManager.getMyUsername();
-    if (myUsername && await StorageManager.hasSolvedSlug(myUsername, problemSlug)) return;
+    if (!myUsername) return;
+
+    const submissions = await fetchRecentSubmissions(myUsername, 20);
+    const today = new Date().toISOString().split('T')[0];
+    const todayStartSec = Math.floor(new Date(today + 'T00:00:00Z').getTime() / 1000);
+
+    const set = await StorageManager.getSolvedSet(myUsername);
+    const prior = set?.slugs || {};
+
+    const solvedToday = [...new Set(
+      (submissions || [])
+        .filter((s) => s.statusDisplay === 'Accepted' && Number(s.timestamp) >= todayStartSec)
+        .map((s) => s.titleSlug)
+    )].filter((slug) => !(prior[slug] && prior[slug] < todayStartSec));
 
     const settings = await StorageManager.getSettings();
     const data = await browser.storage.local.get(['leetsquad_daily_goals']);
     const goals = data.leetsquad_daily_goals || {};
-    const today = new Date().toISOString().split('T')[0];
-
-    if (!goals[today]) {
-      goals[today] = { target: settings.dailyTarget || 3, completed: 0, problems: [] };
-    }
-
-    if (!goals[today].problems.includes(problemSlug)) {
-      goals[today].problems.push(problemSlug);
-      goals[today].completed++;
-      await browser.storage.local.set({ leetsquad_daily_goals: goals });
-    }
+    if (!goals[today]) goals[today] = { target: settings.dailyTarget || 1, completed: 0, problems: [] };
+    goals[today].completed = solvedToday.length;
+    goals[today].problems = solvedToday;
+    await browser.storage.local.set({ leetsquad_daily_goals: goals });
   } catch (error) {
     console.error('Error updating daily goal:', error);
   }

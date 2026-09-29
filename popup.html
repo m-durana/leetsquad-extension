@@ -357,7 +357,7 @@
               <span class="setting-label">Daily Goal</span>
               <span class="setting-desc">Problems to solve per day</span>
             </div>
-            <input type="number" id="setting-daily-goal" class="input-small" min="1" max="99" value="3" aria-label="Daily problem goal">
+            <input type="number" id="setting-daily-goal" class="input-small" min="1" max="99" value="1" aria-label="Daily problem goal">
           </div>
 
           <div class="setting-item">
@@ -495,14 +495,14 @@
 
     <!-- Daily Goal Banner -->
     <footer class="daily-goal" id="daily-goal">
-      <div class="goal-progress">
-        <div class="goal-bar">
-          <div class="goal-fill" id="goal-fill" style="width: 0%"></div>
-        </div>
-        <span class="goal-text" id="goal-text">0/3 today</span>
-      </div>
-      <span class="goal-streak" id="goal-streak">🔥 0 day streak</span>
-      <button type="button" class="goal-open-btn" id="open-problem-btn" title="Open a problem to solve">Open today's question</button>
+      <span class="rec-streak">
+        <span class="flame off" id="goal-flame">🔥</span><span class="txt" id="goal-streak"><span class="num">0</span> day streak</span>
+        <span class="mini-ring" id="goal-ring" style="display:none">
+          <svg viewBox="0 0 26 26"><circle cx="13" cy="13" r="11" fill="none" stroke="var(--bg-tertiary)" stroke-width="3"/><circle id="goal-ring-fill" cx="13" cy="13" r="11" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" stroke-dasharray="69.1" stroke-dashoffset="69.1"/></svg>
+          <span class="lbl" id="goal-ring-label">0/0</span>
+        </span>
+      </span>
+      <button type="button" class="goal-open-btn" id="open-problem-btn" data-mode="daily" title="Open today's LeetCode question"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span>Daily</span></button>
     </footer>
 
     <!-- Cloud Sync verification modal -->

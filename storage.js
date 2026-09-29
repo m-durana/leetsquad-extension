@@ -134,7 +134,7 @@ const StorageManager = {
       showOnProblemList: true,
       notifications: true,
       debugMode: false,
-      dailyTarget: 3,
+      dailyTarget: 1,
       ...saved
     };
   },
@@ -151,7 +151,7 @@ const StorageManager = {
     const goals = (await this.get(this.KEYS.DAILY_GOALS)) || {};
     const today = new Date().toISOString().split('T')[0];
     const settings = await this.getSettings();
-    const todayGoal = goals[today] || { target: settings.dailyTarget || 3, completed: 0, problems: [] };
+    const todayGoal = goals[today] || { target: settings.dailyTarget || 1, completed: 0, problems: [] };
 
     // Calculate streak
     const streak = this.calculateStreak(goals, today);
@@ -159,26 +159,17 @@ const StorageManager = {
     return { ...todayGoal, streak };
   },
 
-  // Calculate current streak
+  // Consecutive UTC days with a solve ending today; grace counts through yesterday if today isn't done.
   calculateStreak(goals, todayStr) {
-    const today = new Date(todayStr);
+    const done = (d) => (goals[d.toISOString().split('T')[0]]?.completed || 0) > 0;
+    const cursor = new Date(todayStr + 'T00:00:00Z');
+    if (!done(cursor)) cursor.setUTCDate(cursor.getUTCDate() - 1);
+
     let streak = 0;
-    let currentDate = new Date(today);
-
-    // Check backwards from today
-    while (true) {
-      const dateStr = currentDate.toISOString().split('T')[0];
-      const dayGoal = goals[dateStr];
-
-      // If this day has completions, increment streak
-      if (dayGoal && dayGoal.completed > 0) {
-        streak++;
-        currentDate.setDate(currentDate.getDate() - 1);
-      } else {
-        break;
-      }
+    while (done(cursor)) {
+      streak++;
+      cursor.setUTCDate(cursor.getUTCDate() - 1);
     }
-
     return streak;
   },
 
@@ -188,7 +179,7 @@ const StorageManager = {
 
     if (!goals[today]) {
       const settings = await this.getSettings();
-      goals[today] = { target: settings.dailyTarget || 3, completed: 0, problems: [] };
+      goals[today] = { target: settings.dailyTarget || 1, completed: 0, problems: [] };
     }
     
     if (!goals[today].problems.includes(problemSlug)) {
@@ -201,7 +192,7 @@ const StorageManager = {
   },
 
   async setDailyTarget(target) {
-    const clamped = Math.min(99, Math.max(1, Math.round(Number(target) || 3)));
+    const clamped = Math.min(99, Math.max(1, Math.round(Number(target) || 1)));
     await this.updateSettings({ dailyTarget: clamped });
     const goals = (await this.get(this.KEYS.DAILY_GOALS)) || {};
     const today = new Date().toISOString().split('T')[0];
@@ -261,13 +252,7 @@ const StorageManager = {
     await this.set(this.KEYS.ACTIVITY_LOG, log);
   },
 
-  // ===== Solved-slug set =====
-  // Shape per user: {
-  //   slugs:          { [slug]: timestampSec },
-  //   submissionIds:  { [slug]: "id" },
-  //   submissionMeta: { [slug]: { lang, rt, mem } },
-  //   lastRefreshed:  ms
-  // }
+  // Solved-slug set per user: { slugs:{slug:tsSec}, submissionIds:{slug:id}, submissionMeta:{slug:{lang,rt,mem}}, lastRefreshed:ms }
 
   async getAllSolvedSets() {
     return (await this.get(this.KEYS.SOLVED_SETS)) || {};

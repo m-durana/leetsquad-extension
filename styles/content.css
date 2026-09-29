@@ -38,6 +38,7 @@
   overflow-y: auto;
 }
 
+
 #leetsquad-widget.collapsed {
   max-height: none;
 }
@@ -465,7 +466,6 @@
   padding: 0;
   margin: 0;
   overflow: visible;
-  cursor: grab;
   transform-origin: bottom right;
   will-change: width, height, border-radius;
   transition: width 0.28s cubic-bezier(0.2, 0, 0, 1),
@@ -481,17 +481,26 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 50%;
-  background: var(--ls-bg-secondary);
-  /* Accent ring + glow so the icon stands out against LeetCode's dark theme. */
-  box-shadow: inset 0 0 0 1.5px var(--ls-accent), 0 4px 14px rgba(0, 0, 0, 0.55);
-  touch-action: none;
+  cursor: pointer;
+  /* Adaptive backplate: translucent plate opposite the page theme so the logo keeps contrast. */
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
   transform: scale(1);
   transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1),
               width 0.28s cubic-bezier(0.2, 0, 0, 1),
               border-radius 0.28s cubic-bezier(0.2, 0, 0, 1),
               padding 0.28s cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* On a light page, flip the plate dark so the logo stays legible. */
+#leetsquad-widget[data-ls-theme="light"].mode-minimized .leetsquad-header {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
 }
 
 #leetsquad-widget.mode-minimized .leetsquad-header:hover {
@@ -556,16 +565,9 @@
   border-radius: 0;
   justify-content: flex-start;
   background: var(--ls-bg-secondary);
+  border: none;
   border-bottom: 1px solid var(--ls-border);
   box-shadow: none;
-  touch-action: auto;
-}
-
-/* While dragging the minimized icon: no transitions, grabbing cursor. */
-#leetsquad-widget.ls-dragging,
-#leetsquad-widget.ls-dragging .leetsquad-header {
-  transition: none !important;
-  cursor: grabbing;
 }
 
 /* Don't enlarge the bar on hover once it's a full-width header. */

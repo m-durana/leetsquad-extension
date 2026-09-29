@@ -1,5 +1,4 @@
-// MAIN-world interceptor: patches fetch/XHR at document_start to catch the user's own accepted submission-check responses (not the DOM badge).
-// Only ever sees the logged-in user's own submissions. No chrome.* access; posts results to content.js via window.postMessage, which validates event.source === window.
+// MAIN-world interceptor: patches fetch/XHR to catch the user's own accepted submissions; posts to content.js via same-window postMessage (no chrome.* access).
 (function () {
   'use strict';
   if (window.__leetsquadInterceptorInstalled) return;

@@ -1311,58 +1311,77 @@ a:hover { opacity: 0.85; }
   border-top: 1px solid var(--border);
 }
 
-.goal-progress {
+/* Daily-goal footer: streak (flame + text) on the left, optional progress ring when goal > 1 */
+.rec-streak {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 4px;
+  font-size: 21px;
+  font-weight: 400;
+  color: var(--text-primary);
+  line-height: 1;
 }
 
-.goal-bar {
-  width: 100px;
-  height: 6px;
-  background: var(--bg-tertiary);
-  border-radius: 3px;
-  overflow: hidden;
+.rec-streak .num { font-weight: 700; }
+
+.rec-streak .flame {
+  font-size: 28px;
+  line-height: 1;
+  position: relative;
+  top: -2.75px;
+  margin-left: -11px;
 }
 
-.goal-fill {
-  height: 100%;
-  background: var(--accent-gradient);
-  border-radius: 3px;
-  transition: width 0.3s ease;
+.rec-streak .flame.off { filter: grayscale(1); opacity: .45; }
+.rec-streak .txt { position: relative; top: -0.5px; margin-left: -4px; }
+
+.mini-ring {
+  --ring-size: 32px;
+  position: relative;
+  width: var(--ring-size);
+  height: var(--ring-size);
+  margin-left: 4px;
 }
 
-.goal-text {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
+.mini-ring[hidden] { display: none; }
+.mini-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
 
-.goal-streak {
-  font-size: 12px;
-  color: var(--warning);
+.mini-ring .lbl {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .goal-open-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 12px;
   font-weight: 600;
-  color: #fff;
-  background: var(--accent-gradient);
+  color: #1a1a1a;
+  background: var(--accent);
   border: none;
   border-radius: 6px;
-  padding: 5px 10px;
+  padding: 6px 11px;
   cursor: pointer;
   white-space: nowrap;
-  transition: opacity 0.15s ease;
+  transition: background 0.15s ease;
 }
 
-.goal-open-btn:hover { opacity: 0.9; }
+.goal-open-btn svg { display: block; }
+.goal-open-btn:hover { background: var(--accent-light); }
 .goal-open-btn:disabled { opacity: 0.5; cursor: default; }
 
 /* "Uses LeetSquad" badge + shared streak next to a name */
 .ls-member-badge {
   width: 13px;
   height: 13px;
+  object-fit: contain;
   vertical-align: -2px;
   margin-left: 3px;
   border-radius: 3px;

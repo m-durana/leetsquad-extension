@@ -163,9 +163,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   // Daily goal elements
-  const goalFill = document.getElementById('goal-fill');
-  const goalText = document.getElementById('goal-text');
   const goalStreak = document.getElementById('goal-streak');
+  const goalFlame = document.getElementById('goal-flame');
+  const goalRing = document.getElementById('goal-ring');
+  const goalRingFill = document.getElementById('goal-ring-fill');
+  const goalRingLabel = document.getElementById('goal-ring-label');
   const openProblemBtn = document.getElementById('open-problem-btn');
   
   // Settings elements
@@ -266,14 +268,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }).join('');
 
       achievementsGrid.innerHTML = cards || '<div class="ach-empty">No achievements yet</div>';
-
-      if (result.unlockedNow.length) {
-        const names = result.unlockedNow
-          .map(id => Achievements.getById(id)?.name)
-          .filter(Boolean)
-          .join(', ');
-        if (names) showToast(`Unlocked: ${names}`);
-      }
+      // No toast on panel open; the background pass notifies genuinely new unlocks.
     } catch (e) {
       achievementsGrid.innerHTML = '<div class="ach-empty">Could not load achievements</div>';
     }
@@ -492,7 +487,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Load friends list
-  const memberIconUrl = browser.runtime.getURL('icons/logo.png');
+  const memberIconUrl = browser.runtime.getURL('icons/icon128.png');
 
   // Inline "uses LeetSquad" badge + shared streak, from a presence map keyed by lowercased username.
   function presenceHtml(username, presence) {
@@ -1031,6 +1026,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   let allActivitySubmissions = [];
   let activityDataLoaded = false;
 
+  // Persistent per-submission percentile cache (immutable), so it shows instantly on later opens.
+  const PERCENTILE_CACHE_KEY = 'leetsquad_percentile_cache';
+  let percentileCache = {};
+  let percentileCacheLoaded = false;
+  async function ensurePercentileCache() {
+    if (percentileCacheLoaded) return;
+    percentileCache = (await StorageManager.get(PERCENTILE_CACHE_KEY)) || {};
+    percentileCacheLoaded = true;
+  }
+
   // Load activity: fetches data once, then renders pages from the cached list
   async function fetchActivityFromNetwork() {
     const [friends, myUsername] = await Promise.all([
@@ -1126,6 +1131,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (activityLoading) return;
     activityLoading = true;
 
+    await ensurePercentileCache();
     activityDisplayCount = showMore ? activityDisplayCount + ACTIVITY_PAGE_SIZE : ACTIVITY_PAGE_SIZE;
 
     if (!activityDataLoaded) {
@@ -1157,25 +1163,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     activityLoading = false;
   }
 
-  // Fetch percentile data lazily for visible items (non-blocking)
+  // Hydrate percentiles from cache, then fetch only what's missing in small parallel batches.
   async function fetchPercentilesForVisible(items) {
     for (const sub of items) {
-      if (sub.runtimePercentile != null || !sub.id) continue;
-      try {
-        const details = await LeetCodeAPI.getSubmissionDetails(sub.id);
-        if (details) {
+      if (sub.runtimePercentile == null && sub.id && percentileCache[sub.id]) {
+        sub.runtimePercentile = percentileCache[sub.id].rt;
+        sub.memoryPercentile = percentileCache[sub.id].mem;
+      }
+    }
+    const missing = items.filter(s => s.id && s.runtimePercentile == null && !percentileCache[s.id]);
+    if (missing.length === 0) return;
+
+    let dirty = false;
+    const CHUNK = 4;
+    for (let i = 0; i < missing.length; i += CHUNK) {
+      await Promise.all(missing.slice(i, i + CHUNK).map(async (sub) => {
+        try {
+          const details = await LeetCodeAPI.getSubmissionDetails(sub.id);
+          if (!details) return;
           sub.runtimePercentile = details.runtimePercentile;
           sub.memoryPercentile = details.memoryPercentile;
-          // Update the badge in-place without re-rendering the whole list
+          percentileCache[sub.id] = { rt: details.runtimePercentile, mem: details.memoryPercentile };
+          dirty = true;
           const el = activityFeed.querySelector(`.activity-item[data-sub-id="${sub.id}"] .percentile-slot`);
           if (el && details.runtimePercentile) {
             const pct = details.runtimePercentile.toFixed(1);
             el.innerHTML = `<span class="percentile-badge" title="Beats ${pct}% in runtime">🏆${pct}%</span>`;
           }
-        }
-      } catch (e) {
-        // Non-critical, skip
-      }
+        } catch (e) { /* non-critical */ }
+      }));
+    }
+
+    if (dirty) {
+      const keys = Object.keys(percentileCache);
+      if (keys.length > 1000) for (const k of keys.slice(0, keys.length - 800)) delete percentileCache[k];
+      try { await StorageManager.set(PERCENTILE_CACHE_KEY, percentileCache); } catch (e) {}
     }
   }
 
@@ -1205,8 +1227,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const actionText = isFirstSolve ? 'solved' : 'submitted another solution for';
 
-    const percentileDisplay = runtimePercentile
-      ? (() => { const pct = runtimePercentile.toFixed(1); return `<span class="percentile-badge" title="Beats ${pct}% in runtime">🏆${pct}%</span>`; })()
+    const rp = runtimePercentile != null ? runtimePercentile : (id && percentileCache[id] ? percentileCache[id].rt : null);
+    const percentileDisplay = rp != null
+      ? (() => { const pct = rp.toFixed(1); return `<span class="percentile-badge" title="Beats ${pct}% in runtime">🏆${pct}%</span>`; })()
       : '';
 
     const submissionLink = id
@@ -1245,7 +1268,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (settingShowProblemList) settingShowProblemList.checked = settings.showOnProblemList !== false;
     if (settingNotifications) settingNotifications.checked = settings.notifications;
     if (settingDebugMode) settingDebugMode.checked = settings.debugMode || false;
-    if (settingDailyGoal) settingDailyGoal.value = settings.dailyTarget || 3;
+    if (settingDailyGoal) settingDailyGoal.value = settings.dailyTarget || 1;
 
     const username = await StorageManager.getMyUsername();
     if (username) {
@@ -1782,54 +1805,86 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // Daily goal - fetch from LeetCode API in retrospect
-  async function updateDailyGoal() {
-    const myUsername = await StorageManager.getMyUsername();
+  // Paint the footer from local storage (instant, no network).
+  async function renderGoalFooter() {
+    const goal = await StorageManager.getDailyGoals();
+    const settings = await StorageManager.getSettings();
+    // Target follows the current setting, not the value frozen into each day's entry.
+    const target = settings.dailyTarget || 1;
+    const completed = goal.completed || 0;
+    const met = completed >= target;
 
-    if (myUsername) {
-      // Fetch today's submissions from LeetCode
-      const submissions = await LeetCodeAPI.getRecentSubmissions(myUsername, 100);
-      const today = new Date().toISOString().split('T')[0];
-      const todayStart = new Date(today).getTime() / 1000;
+    if (goalStreak) goalStreak.innerHTML = `<span class="num">${goal.streak || 0}</span> day streak`;
+    if (goalFlame) goalFlame.classList.toggle('off', !met);
 
-      if (submissions && submissions.submission) {
-        // Find accepted submissions from today
-        const todayAccepted = submissions.submission.filter(s =>
-          s.statusDisplay === 'Accepted' && s.timestamp >= todayStart
-        );
-
-        // Get unique problems solved today
-        const uniqueProblems = [...new Set(todayAccepted.map(s => s.titleSlug))];
-
-        // Update storage with actual count
-        const goals = await StorageManager.get('leetsquad_daily_goals') || {};
-        if (!goals[today]) {
-          const s = await StorageManager.getSettings();
-          goals[today] = { target: s.dailyTarget || 3, completed: 0, problems: [] };
+    // Ring only appears when the goal is set above 1; otherwise the flame is the whole story.
+    if (goalRing) {
+      if (target > 1) {
+        goalRing.style.display = '';
+        if (goalRingLabel) goalRingLabel.textContent = `${Math.min(completed, target)}/${target}`;
+        if (goalRingFill) {
+          const C = 69.1; // 2*pi*r for r=11
+          goalRingFill.style.strokeDashoffset = String(C * (1 - Math.min(completed / target, 1)));
         }
-        goals[today].completed = uniqueProblems.length;
-        goals[today].problems = uniqueProblems;
-        await StorageManager.set('leetsquad_daily_goals', goals);
+      } else {
+        goalRing.style.display = 'none';
       }
     }
-
-    const goal = await StorageManager.getDailyGoals();
-    const percentage = Math.min((goal.completed / goal.target) * 100, 100);
-    goalFill.style.width = `${percentage}%`;
-    goalText.textContent = `${goal.completed}/${goal.target} today`;
-    goalStreak.textContent = `🔥 ${goal.streak || 0} day streak`;
-    updateOpenProblemButton(goal.completed || 0);
+    updateOpenProblemButton(completed);
   }
+
+  // Daily goal - paint cached state instantly, then reconcile today's count from LeetCode.
+  async function updateDailyGoal() {
+    await renderGoalFooter();
+
+    const myUsername = await StorageManager.getMyUsername();
+    if (!myUsername) return;
+
+    const submissions = await LeetCodeAPI.getRecentSubmissions(myUsername, 100);
+    const today = new Date().toISOString().split('T')[0];
+    const todayStart = new Date(today).getTime() / 1000;
+
+    if (submissions && submissions.submission) {
+      const todayAccepted = submissions.submission.filter(s =>
+        s.statusDisplay === 'Accepted' && s.timestamp >= todayStart
+      );
+      const mySet = await StorageManager.getSolvedSet(myUsername);
+      const prior = mySet?.slugs || {};
+      // First-time solves only: re-solving a problem you'd already solved doesn't count.
+      const uniqueProblems = [...new Set(todayAccepted.map(s => s.titleSlug))]
+        .filter(slug => !(prior[slug] && prior[slug] < todayStart));
+
+      const goals = await StorageManager.get('leetsquad_daily_goals') || {};
+      if (!goals[today]) {
+        const s = await StorageManager.getSettings();
+        goals[today] = { target: s.dailyTarget || 1, completed: 0, problems: [] };
+      }
+      goals[today].completed = uniqueProblems.length;
+      goals[today].problems = uniqueProblems;
+      await StorageManager.set('leetsquad_daily_goals', goals);
+
+      await renderGoalFooter();
+    }
+  }
+
+  const OPEN_ICONS = {
+    // calendar (today's question)
+    daily: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+    // shuffle (random unsolved)
+    random: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>',
+  };
 
   // Before the first solve of the day: open LeetCode's daily question. After: open an unsolved one.
   function updateOpenProblemButton(completedToday) {
     if (!openProblemBtn) return;
     if (completedToday === 0) {
-      openProblemBtn.textContent = "Open today's question";
       openProblemBtn.dataset.mode = 'daily';
+      openProblemBtn.title = "Open today's LeetCode question";
+      openProblemBtn.innerHTML = `${OPEN_ICONS.daily}<span>Daily</span>`;
     } else {
-      openProblemBtn.textContent = 'Open random unsolved';
       openProblemBtn.dataset.mode = 'random';
+      openProblemBtn.title = 'Open a random unsolved problem';
+      openProblemBtn.innerHTML = `${OPEN_ICONS.random}<span>Random</span>`;
     }
   }
 
