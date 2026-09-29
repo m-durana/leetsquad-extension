@@ -27,6 +27,15 @@ global.chrome = {
     onInstalled: {
       addListener: jest.fn(),
     },
+    onStartup: {
+      addListener: jest.fn(),
+    },
+    getURL: jest.fn((p) => `chrome-extension://test/${p}`),
+  },
+  action: {
+    setBadgeText: jest.fn(() => Promise.resolve()),
+    setBadgeBackgroundColor: jest.fn(() => Promise.resolve()),
+    openPopup: jest.fn(() => Promise.resolve()),
   },
   alarms: {
     create: jest.fn(),

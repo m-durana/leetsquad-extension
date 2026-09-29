@@ -25,9 +25,12 @@ const SLUG_COUNT_GRACE = 50;
 
 const limitsDisabled = process.env.NODE_ENV === 'test' || process.env.DISABLE_RATE_LIMITS === '1';
 
+// Generous cap: normal clients coalesce unchanged uploads, so this only bites a bug/retry storm/stolen token.
+const SYNC_MAX_PER_HOUR = Number(process.env.SYNC_MAX_PER_HOUR ?? 60);
+
 const syncLimiter = limitsDisabled
   ? (_req: AuthedRequest, _res: Response, next: () => void) => next()
-  : rateLimit({ windowMs: 60 * 60_000, limit: 12, standardHeaders: 'draft-7', legacyHeaders: false });
+  : rateLimit({ windowMs: 60 * 60_000, limit: SYNC_MAX_PER_HOUR, standardHeaders: 'draft-7', legacyHeaders: false });
 
 // Accepts three upload shapes:
 //   string[]                                  (legacy v1: slug-only)

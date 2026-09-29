@@ -112,7 +112,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await updateCloudSyncNavStatus();
 
     verifyBannerBtn.textContent = '✓ Verified';
-    browser.runtime.sendMessage({ action: 'uploadMySolvedSet' });
+    browser.runtime.sendMessage({ action: 'uploadMySolvedSet', force: true });
     reconcileFriendsAfterVerify().catch((e) => console.error('friend reconcile:', e));
     setTimeout(() => {
       verifyBanner?.classList.add('hidden');
@@ -166,6 +166,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const goalFill = document.getElementById('goal-fill');
   const goalText = document.getElementById('goal-text');
   const goalStreak = document.getElementById('goal-streak');
+  const openProblemBtn = document.getElementById('open-problem-btn');
   
   // Settings elements
   const settingShowWidget = document.getElementById('setting-show-widget');
@@ -491,6 +492,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Load friends list
+  const memberIconUrl = browser.runtime.getURL('icons/logo.png');
+
+  // Inline "uses LeetSquad" badge + shared streak, from a presence map keyed by lowercased username.
+  function presenceHtml(username, presence) {
+    if (!presence) return '';
+    const p = presence[String(username || '').toLowerCase()];
+    if (!p || !p.member) return '';
+    const streak = p.streak > 0
+      ? ` <span class="ls-streak" title="LeetSquad streak">🔥${p.streak}</span>`
+      : '';
+    return ` <img class="ls-member-badge" src="${memberIconUrl}" alt="LeetSquad member" title="Uses LeetSquad">${streak}`;
+  }
+
   async function loadFriends() {
     const friends = await StorageManager.getFriends();
     friendsCount.textContent = friends.length;
@@ -540,9 +554,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       }));
     }
 
+    const presence = await CloudSync.getPresence(friends).catch(() => null);
+
     friendsList.innerHTML = friendsData
       .filter(f => f)
-      .map(friend => renderFriendCard(friend))
+      .map(friend => renderFriendCard(friend, presence))
       .join('');
 
     // Add remove handlers
@@ -558,7 +574,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  function renderFriendCard(friend) {
+  function renderFriendCard(friend, presence) {
     const { username, profile, solved } = friend;
     const easy = solved?.easySolved ?? profile?.easySolved ?? 0;
     const medium = solved?.mediumSolved ?? profile?.mediumSolved ?? 0;
@@ -579,7 +595,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
         </div>
         <div class="friend-details">
-          <div class="friend-name">${safeName}</div>
+          <div class="friend-name">${safeName}${presenceHtml(username, presence)}</div>
           <div class="friend-stats-mini">
             <span class="stat-easy">E: ${easy}</span>
             <span class="stat-medium">M: ${medium}</span>
@@ -607,6 +623,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Current period for leaderboard
   let currentPeriod = 'all';
+  // Last-known presence (member badge + streak), reused across renders while the popup is open.
+  let cachedPresence = null;
 
   // Cached processed users from the last loadLeaderboard, so the sort animation can re-sort without refetching.
   let lastLeaderboardUsersData = null;
@@ -664,6 +682,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     lastLeaderboardCatalog = catalog;
 
     const allUsers = myUsername ? [myUsername, ...friends.filter(f => f !== myUsername)] : friends;
+
+    const presencePromise = CloudSync.getPresence(allUsers)
+      .then((p) => { if (p) cachedPresence = p; return p; })
+      .catch(() => null);
 
     if (allUsers.length === 0) {
       leaderboardList.innerHTML = `
@@ -807,6 +829,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
+    await presencePromise;
     leaderboardList.innerHTML = sorted
       .map((user, index) => renderLeaderboardItem(user, index, myUsername))
       .join('');
@@ -984,7 +1007,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
         <div class="lb-info">
           <div class="lb-name">
-            <a href="${profileHref}" target="_blank" class="lb-name-link">${safeName}</a>${isMe ? ' <span class="you-tag">(You)</span>' : ''}
+            <a href="${profileHref}" target="_blank" class="lb-name-link">${safeName}</a>${isMe ? ' <span class="you-tag">(You)</span>' : ''}${presenceHtml(username, cachedPresence)}
             ${globalRank ? `<span class="global-rank" title="Global LeetCode Rank">#${escapeHtml(globalRank)}</span>` : ''}
           </div>
           <div class="lb-breakdown">
@@ -1246,6 +1269,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const cloudVerifyCancelBtn = document.getElementById('cloud-verify-cancel');
   const cloudVerifyErrorEl = document.getElementById('cloud-verify-error');
 
+  const shareProfileRow = document.getElementById('share-profile-row');
+  const settingShareProfile = document.getElementById('setting-share-profile');
   const apiKeyRow = document.getElementById('cloud-sync-api-key');
   const apiKeyInput = document.getElementById('api-key-input');
   const apiKeyCopyBtn = document.getElementById('api-key-copy');
@@ -1254,7 +1279,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   let pendingCloudUsername = null;
 
+  async function renderShareProfileRow(verified) {
+    if (!shareProfileRow) return;
+    if (!verified) {
+      shareProfileRow.classList.add('hidden');
+      return;
+    }
+    shareProfileRow.classList.remove('hidden');
+    const current = await CloudSync.getShareProfile();
+    if (settingShareProfile && current !== null) settingShareProfile.checked = current;
+  }
+
+  settingShareProfile?.addEventListener('change', async (e) => {
+    const resp = await CloudSync.setShareProfile(e.target.checked);
+    if (!resp) {
+      e.target.checked = !e.target.checked;
+      showToast('Could not update sharing. Try again.', true);
+    }
+  });
+
   async function renderApiKeyRow(verified) {
+    await renderShareProfileRow(verified);
     if (!apiKeyRow) return;
     if (!verified) {
       apiKeyRow.classList.add('hidden');
@@ -1316,6 +1361,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       await renderVerifyBanner();
       await beginCloudVerify();
     } else {
+      const status = await CloudSync.getStatus();
+      if (status.verified) {
+        const ok = await customConfirm(
+          'This signs you out on this device and stops publishing your solves to friends. Your cloud data stays on the server until you delete it.',
+          { title: 'Turn off Cloud Sync?', confirmLabel: 'Turn off', danger: true }
+        );
+        if (!ok) {
+          e.target.checked = true;
+          return;
+        }
+      }
       await CloudSync.disconnect();
       await renderCloudSyncStatus();
       await updateCloudSyncNavStatus();
@@ -1358,7 +1414,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   cloudVerifyGoBtn?.addEventListener('click', async () => {
     if (!pendingCloudUsername) return;
     cloudVerifyGoBtn.disabled = true;
-    cloudVerifyGoBtn.textContent = 'Verifying...';
+    cloudVerifyGoBtn.innerHTML = '<span class="spinner"></span> Verifying...';
     cloudVerifyErrorEl.classList.add('hidden');
 
     try {
@@ -1389,7 +1445,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       await renderVerifyBanner();
       showToast(`Connected as @${resp.username}`);
       // Upload runs in the worker; the popup just nudges it so the first sync isn't delayed to the next alarm.
-      browser.runtime.sendMessage({ action: 'uploadMySolvedSet' });
+      browser.runtime.sendMessage({ action: 'uploadMySolvedSet', force: true });
 
       // Reconcile the friend list with the server (prompt on conflict); runs after verify so the JWT is set.
       reconcileFriendsAfterVerify().catch((e) => console.error('friend reconcile:', e));
@@ -1656,8 +1712,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   settingDailyGoal?.addEventListener('change', async (e) => {
-    await StorageManager.setDailyTarget(parseInt(e.target.value));
+    const raw = parseInt(e.target.value, 10);
+    const clamped = Math.min(99, Math.max(1, Number.isNaN(raw) ? 3 : raw));
+    e.target.value = clamped;
+    await StorageManager.setDailyTarget(clamped);
     updateDailyGoal();
+  });
+
+  const carryStreakBtn = document.getElementById('carry-streak-btn');
+  carryStreakBtn?.addEventListener('click', async () => {
+    carryStreakBtn.disabled = true;
+    const original = carryStreakBtn.textContent;
+    carryStreakBtn.innerHTML = '<span class="spinner"></span>';
+    try {
+      const username = await StorageManager.getMyUsername();
+      const resp = await browser.runtime.sendMessage({ action: 'carryOverStreak', username })
+        .then((r) => r || { ok: false })
+        .catch(() => ({ ok: false }));
+      if (resp.ok) {
+        showToast(resp.streak > 0 ? `Carried over a ${resp.streak}-day streak` : 'No LeetCode streak found');
+        updateDailyGoal();
+        browser.runtime.sendMessage({ action: 'syncDailyGoals' });
+      } else {
+        showToast('Could not read your LeetCode streak', true);
+      }
+    } finally {
+      carryStreakBtn.textContent = original;
+      carryStreakBtn.disabled = false;
+    }
   });
 
   clearCacheBtn.addEventListener('click', async () => {
@@ -1722,7 +1804,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Update storage with actual count
         const goals = await StorageManager.get('leetsquad_daily_goals') || {};
         if (!goals[today]) {
-          goals[today] = { target: 3, completed: 0, problems: [] };
+          const s = await StorageManager.getSettings();
+          goals[today] = { target: s.dailyTarget || 3, completed: 0, problems: [] };
         }
         goals[today].completed = uniqueProblems.length;
         goals[today].problems = uniqueProblems;
@@ -1735,7 +1818,67 @@ document.addEventListener('DOMContentLoaded', async () => {
     goalFill.style.width = `${percentage}%`;
     goalText.textContent = `${goal.completed}/${goal.target} today`;
     goalStreak.textContent = `🔥 ${goal.streak || 0} day streak`;
+    updateOpenProblemButton(goal.completed || 0);
   }
+
+  // Before the first solve of the day: open LeetCode's daily question. After: open an unsolved one.
+  function updateOpenProblemButton(completedToday) {
+    if (!openProblemBtn) return;
+    if (completedToday === 0) {
+      openProblemBtn.textContent = "Open today's question";
+      openProblemBtn.dataset.mode = 'daily';
+    } else {
+      openProblemBtn.textContent = 'Open random unsolved';
+      openProblemBtn.dataset.mode = 'random';
+    }
+  }
+
+  // Prefer a problem one of your friends has already solved (so you can compare); otherwise truly random.
+  async function pickUnsolvedSlug() {
+    const catalog = await StorageManager.getProblemCatalog();
+    const problems = catalog?.problems || {};
+    const allSlugs = Object.keys(problems);
+    if (allSlugs.length === 0) return null;
+
+    const myUsername = await StorageManager.getMyUsername();
+    const mySet = myUsername ? await StorageManager.getSolvedSet(myUsername) : { slugs: {} };
+    const mySolved = mySet?.slugs || {};
+
+    const unsolved = allSlugs.filter((s) => !mySolved[s] && !problems[s].paid);
+    if (unsolved.length === 0) return null;
+
+    const allSets = await StorageManager.getAllSolvedSets();
+    const friendSolved = new Set();
+    for (const [user, set] of Object.entries(allSets)) {
+      if (user === myUsername) continue;
+      for (const slug of Object.keys(set?.slugs || {})) friendSolved.add(slug);
+    }
+    const friendUnsolved = unsolved.filter((s) => friendSolved.has(s));
+    const pool = friendUnsolved.length > 0 ? friendUnsolved : unsolved;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  openProblemBtn?.addEventListener('click', async () => {
+    openProblemBtn.disabled = true;
+    try {
+      if (openProblemBtn.dataset.mode === 'daily') {
+        const daily = await LeetCodeAPI.getDailyChallenge();
+        const url = daily?.link
+          ? `https://leetcode.com${daily.link}`
+          : (daily?.slug ? `https://leetcode.com/problems/${daily.slug}/` : 'https://leetcode.com/problemset/');
+        browser.tabs.create({ url });
+      } else {
+        const slug = await pickUnsolvedSlug();
+        const url = slug ? `https://leetcode.com/problems/${slug}/` : 'https://leetcode.com/problemset/';
+        if (!slug) showToast('No cached problem list yet. Opening the problemset.', true);
+        browser.tabs.create({ url });
+      }
+    } catch (e) {
+      showToast('Could not open a problem', true);
+    } finally {
+      openProblemBtn.disabled = false;
+    }
+  });
 
   // Toast banner above the daily-goal footer; red on error, green on success. Guards against a stray truthy value rendering as success.
   function customConfirm(body, opts = {}) {
@@ -1806,7 +1949,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (d[dismissedKey]) return;
       const kindLabel = err.kind === 'upload' ? 'Cloud sync upload' : 'Friend list sync';
       const username = await StorageManager.getMyUsername();
-      showFailureToast(`${kindLabel} failed (${err.code}).`, err.code, { kind: err.kind, username });
+      if (err.code === 'rate_limited') {
+        showToast('Syncing too often. It will resume automatically in a minute.', 'error');
+      } else {
+        showFailureToast(`${kindLabel} failed (${err.code}).`, err.code, { kind: err.kind, username });
+      }
       await browser.storage.local.set({ [dismissedKey]: Date.now() });
     } catch (e) {}
   }

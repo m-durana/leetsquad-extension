@@ -552,6 +552,104 @@
     widget.style.height = naturalExpandedHeight(widget) + 'px';
   }
 
+  // Draggable widget position (global across all LeetCode pages).
+  const WIDGET_POS_KEY = 'leetsquad_widget_pos';
+  const SNAP_CORNER_PX = 100;
+  const DRAG_THRESHOLD_PX = 5;
+  let suppressWidgetClick = false;
+
+  function setWidgetAnchors(widget, pos) {
+    widget.style.left = pos.anchorX === 'left' ? pos.x + 'px' : 'auto';
+    widget.style.right = pos.anchorX === 'right' ? pos.x + 'px' : 'auto';
+    widget.style.top = pos.anchorY === 'top' ? pos.y + 'px' : 'auto';
+    widget.style.bottom = pos.anchorY === 'bottom' ? pos.y + 'px' : 'auto';
+    widget.style.transformOrigin = `${pos.anchorY} ${pos.anchorX}`;
+  }
+
+  function resetWidgetPosition(widget) {
+    widget.style.left = '';
+    widget.style.right = '';
+    widget.style.top = '';
+    widget.style.bottom = '';
+    widget.style.transformOrigin = '';
+  }
+
+  async function applySavedWidgetPosition(widget) {
+    try {
+      const pos = await StorageManager.get(WIDGET_POS_KEY);
+      if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') setWidgetAnchors(widget, pos);
+    } catch (e) {}
+  }
+
+  // Drag the minimized icon anywhere; drop near the bottom-right corner to snap back to the default spot.
+  function setupWidgetDrag(widget, handle) {
+    let dragging = false, moved = false, startX = 0, startY = 0, originLeft = 0, originTop = 0;
+
+    handle.addEventListener('pointerdown', (e) => {
+      if (currentDisplayMode !== 'minimized' || isWidgetExpanded || e.button !== 0) return;
+      dragging = true;
+      moved = false;
+      startX = e.clientX;
+      startY = e.clientY;
+      const rect = widget.getBoundingClientRect();
+      originLeft = rect.left;
+      originTop = rect.top;
+      widget.style.left = originLeft + 'px';
+      widget.style.top = originTop + 'px';
+      widget.style.right = 'auto';
+      widget.style.bottom = 'auto';
+      handle.setPointerCapture?.(e.pointerId);
+    });
+
+    handle.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (!moved && Math.hypot(dx, dy) > DRAG_THRESHOLD_PX) {
+        moved = true;
+        widget.classList.add('ls-dragging');
+      }
+      if (!moved) return;
+      const w = widget.offsetWidth, h = widget.offsetHeight;
+      widget.style.left = Math.min(Math.max(0, originLeft + dx), window.innerWidth - w) + 'px';
+      widget.style.top = Math.min(Math.max(0, originTop + dy), window.innerHeight - h) + 'px';
+    });
+
+    const endDrag = async (e) => {
+      if (!dragging) return;
+      dragging = false;
+      handle.releasePointerCapture?.(e.pointerId);
+      if (!moved) return;
+      widget.classList.remove('ls-dragging');
+      // Swallow the click that follows this drag so it doesn't expand the widget.
+      suppressWidgetClick = true;
+      setTimeout(() => { suppressWidgetClick = false; }, 0);
+
+      const rect = widget.getBoundingClientRect();
+      const nearCorner = (window.innerWidth - rect.right) < SNAP_CORNER_PX &&
+                         (window.innerHeight - rect.bottom) < SNAP_CORNER_PX;
+      if (nearCorner) {
+        resetWidgetPosition(widget);
+        try { await StorageManager.remove(WIDGET_POS_KEY); } catch (err) {}
+        return;
+      }
+      // Anchor to the nearest edges so expansion grows back on-screen.
+      const anchorX = (rect.left + rect.width / 2) > window.innerWidth / 2 ? 'right' : 'left';
+      const anchorY = (rect.top + rect.height / 2) > window.innerHeight / 2 ? 'bottom' : 'top';
+      const pos = {
+        anchorX,
+        anchorY,
+        x: anchorX === 'left' ? Math.round(rect.left) : Math.round(window.innerWidth - rect.right),
+        y: anchorY === 'top' ? Math.round(rect.top) : Math.round(window.innerHeight - rect.bottom),
+      };
+      setWidgetAnchors(widget, pos);
+      try { await StorageManager.set(WIDGET_POS_KEY, pos); } catch (err) {}
+    };
+
+    handle.addEventListener('pointerup', endDrag);
+    handle.addEventListener('pointercancel', endDrag);
+  }
+
   // Insert widget into page
   async function insertWidget() {
     // Check if widget already exists
@@ -585,6 +683,9 @@
     const header = widget.querySelector('.leetsquad-header');
     const closeBtn = widget.querySelector('.leetsquad-close');
 
+    await applySavedWidgetPosition(widget);
+    if (header) setupWidgetDrag(widget, header);
+
     // Close button to collapse back to icon
     closeBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -593,6 +694,7 @@
 
     // Header/icon click to expand
     header?.addEventListener('click', (e) => {
+      if (suppressWidgetClick) { e.stopPropagation(); return; }
       if (currentDisplayMode === 'minimized') {
         e.stopPropagation();
         if (isWidgetExpanded) collapseWidget(widget);

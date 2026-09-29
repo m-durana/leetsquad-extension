@@ -1343,6 +1343,38 @@ a:hover { opacity: 0.85; }
   color: var(--warning);
 }
 
+.goal-open-btn {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent-gradient);
+  border: none;
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s ease;
+}
+
+.goal-open-btn:hover { opacity: 0.9; }
+.goal-open-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* "Uses LeetSquad" badge + shared streak next to a name */
+.ls-member-badge {
+  width: 13px;
+  height: 13px;
+  vertical-align: -2px;
+  margin-left: 3px;
+  border-radius: 3px;
+}
+
+.ls-streak {
+  font-size: 11px;
+  color: var(--warning);
+  margin-left: 2px;
+  white-space: nowrap;
+}
+
 /* ===== MUTUALS TAB ===== */
 
 /* Friend Selector */

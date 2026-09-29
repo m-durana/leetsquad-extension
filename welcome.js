@@ -3,6 +3,19 @@
   const skipBtn = document.getElementById('skip-btn');
   const warning = document.getElementById('signin-warning');
   const errorEl = document.getElementById('error');
+  const postVerify = document.getElementById('post-verify');
+  const openExtBtn = document.getElementById('open-ext-btn');
+  const carryStreakBtn = document.getElementById('carry-streak-btn');
+
+  // openPopup needs a user gesture and is unsupported on older browsers; fall back to a toolbar hint.
+  openExtBtn?.addEventListener('click', async () => {
+    try {
+      await browser.action.openPopup();
+    } catch (e) {
+      openExtBtn.textContent = 'Click the LeetSquad icon in your toolbar';
+      openExtBtn.disabled = true;
+    }
+  });
 
   skipBtn.addEventListener('click', () => {
     browser.storage.local.set({ leetsquad_welcome_skipped: Date.now() });
@@ -37,7 +50,7 @@
 
   verifyBtn.addEventListener('click', async () => {
     verifyBtn.disabled = true;
-    verifyBtn.textContent = 'Starting…';
+    verifyBtn.innerHTML = '<span class="spinner"></span> Starting…';
     errorEl.classList.add('hidden');
 
     let nonce;
@@ -59,7 +72,7 @@
       return;
     }
 
-    verifyBtn.textContent = 'Writing skill tag…';
+    verifyBtn.innerHTML = '<span class="spinner"></span> Writing skill tag…';
 
     const resp = await browser.runtime.sendMessage(
       { action: 'verifyBio', nonce, expectedUsername: username }
@@ -86,7 +99,20 @@
       await browser.storage.local.set({ leetsquad_cloud_sync_api_key: resp.api_key });
     }
 
-    verifyBtn.textContent = 'Verified ✓ closing…';
-    setTimeout(() => window.close(), 1200);
+    verifyBtn.textContent = 'Verified ✓';
+    verifyBtn.disabled = true;
+    skipBtn.classList.add('hidden');
+    postVerify?.classList.remove('hidden');
+
+    carryStreakBtn?.addEventListener('click', async () => {
+      carryStreakBtn.disabled = true;
+      carryStreakBtn.innerHTML = '<span class="spinner"></span> Carrying over…';
+      const r = await browser.runtime.sendMessage({ action: 'carryOverStreak', username })
+        .then((x) => x || { ok: false })
+        .catch(() => ({ ok: false }));
+      carryStreakBtn.textContent = r.ok
+        ? (r.streak > 0 ? `Carried over ${r.streak}-day streak ✓` : 'No LeetCode streak found')
+        : 'Could not read streak';
+    });
   });
 })();

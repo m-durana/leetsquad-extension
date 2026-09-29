@@ -464,8 +464,8 @@
   border-radius: 24px;
   padding: 0;
   margin: 0;
-  overflow: hidden;
-  cursor: pointer;
+  overflow: visible;
+  cursor: grab;
   transform-origin: bottom right;
   will-change: width, height, border-radius;
   transition: width 0.28s cubic-bezier(0.2, 0, 0, 1),
@@ -484,6 +484,9 @@
   border: none;
   border-radius: 50%;
   background: var(--ls-bg-secondary);
+  /* Accent ring + glow so the icon stands out against LeetCode's dark theme. */
+  box-shadow: inset 0 0 0 1.5px var(--ls-accent), 0 4px 14px rgba(0, 0, 0, 0.55);
+  touch-action: none;
   transform: scale(1);
   transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1),
               width 0.28s cubic-bezier(0.2, 0, 0, 1),
@@ -554,6 +557,15 @@
   justify-content: flex-start;
   background: var(--ls-bg-secondary);
   border-bottom: 1px solid var(--ls-border);
+  box-shadow: none;
+  touch-action: auto;
+}
+
+/* While dragging the minimized icon: no transitions, grabbing cursor. */
+#leetsquad-widget.ls-dragging,
+#leetsquad-widget.ls-dragging .leetsquad-header {
+  transition: none !important;
+  cursor: grabbing;
 }
 
 /* Don't enlarge the bar on hover once it's a full-width header. */

@@ -217,10 +217,10 @@ describe('StorageManager settings', () => {
   test('getSettings returns defaults when no settings saved', async () => {
     const settings = await SM.getSettings();
     expect(settings.showOnProblemPage).toBe(true);
+    expect(settings.showOnProblemList).toBe(true);
     expect(settings.notifications).toBe(true);
     expect(settings.debugMode).toBe(false);
-    expect(settings.widgetDisplayMode).toBe('minimized');
-    expect(settings.theme).toBe('dark');
+    expect(settings.dailyTarget).toBe(3);
   });
 
   test('updateSettings merges partial updates', async () => {

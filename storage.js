@@ -132,14 +132,9 @@ const StorageManager = {
     return {
       showOnProblemPage: true,
       showOnProblemList: true,
-      showSolveTime: true,
-      showAttempts: true,
       notifications: true,
-      dailyReminder: false,
-      reminderTime: '09:00',
-      theme: 'dark',
-      widgetDisplayMode: 'minimized',
       debugMode: false,
+      dailyTarget: 3,
       ...saved
     };
   },
@@ -155,7 +150,8 @@ const StorageManager = {
   async getDailyGoals() {
     const goals = (await this.get(this.KEYS.DAILY_GOALS)) || {};
     const today = new Date().toISOString().split('T')[0];
-    const todayGoal = goals[today] || { target: 3, completed: 0, problems: [] };
+    const settings = await this.getSettings();
+    const todayGoal = goals[today] || { target: settings.dailyTarget || 3, completed: 0, problems: [] };
 
     // Calculate streak
     const streak = this.calculateStreak(goals, today);
@@ -189,9 +185,10 @@ const StorageManager = {
   async updateDailyGoal(problemSlug, difficulty) {
     const goals = (await this.get(this.KEYS.DAILY_GOALS)) || {};
     const today = new Date().toISOString().split('T')[0];
-    
+
     if (!goals[today]) {
-      goals[today] = { target: 3, completed: 0, problems: [] };
+      const settings = await this.getSettings();
+      goals[today] = { target: settings.dailyTarget || 3, completed: 0, problems: [] };
     }
     
     if (!goals[today].problems.includes(problemSlug)) {
@@ -204,15 +201,17 @@ const StorageManager = {
   },
 
   async setDailyTarget(target) {
+    const clamped = Math.min(99, Math.max(1, Math.round(Number(target) || 3)));
+    await this.updateSettings({ dailyTarget: clamped });
     const goals = (await this.get(this.KEYS.DAILY_GOALS)) || {};
     const today = new Date().toISOString().split('T')[0];
-    
+
     if (!goals[today]) {
-      goals[today] = { target, completed: 0, problems: [] };
+      goals[today] = { target: clamped, completed: 0, problems: [] };
     } else {
-      goals[today].target = target;
+      goals[today].target = clamped;
     }
-    
+
     await this.set(this.KEYS.DAILY_GOALS, goals);
     return goals[today];
   },

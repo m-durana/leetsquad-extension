@@ -9,7 +9,8 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     lc_username   TEXT PRIMARY KEY,
     verified_at   INTEGER NOT NULL,
-    last_sync_at  INTEGER NOT NULL DEFAULT 0
+    last_sync_at  INTEGER NOT NULL DEFAULT 0,
+    share_profile INTEGER NOT NULL DEFAULT 1
   );
 
   CREATE TABLE IF NOT EXISTS auth_nonces (
@@ -87,6 +88,16 @@ db.exec(`
   );
 `);
 
+// Add share_profile to pre-existing users tables (opt-out; on by default).
+(function migrateShareProfileColumn() {
+  try {
+    const cols = db.prepare(`PRAGMA table_info(users)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'share_profile')) {
+      db.exec(`ALTER TABLE users ADD COLUMN share_profile INTEGER NOT NULL DEFAULT 1`);
+    }
+  } catch (e) { console.error('share_profile migration failed:', e); }
+})();
+
 export const stmts = {
   insertNonce: db.prepare(
     `INSERT INTO auth_nonces (lc_username, nonce, expires_at) VALUES (?, ?, ?)`
@@ -131,6 +142,8 @@ export const stmts = {
     `SELECT slugs_json, last_self_sync_at FROM solved_sets WHERE lc_username = ?`
   ),
   deleteUser: db.prepare(`DELETE FROM users WHERE lc_username = ?`),
+  getShareProfile: db.prepare(`SELECT share_profile FROM users WHERE lc_username = ?`),
+  setShareProfile: db.prepare(`UPDATE users SET share_profile = ? WHERE lc_username = ?`),
   deleteSolvedSet: db.prepare(`DELETE FROM solved_sets WHERE lc_username = ?`),
   touchLastSync: db.prepare(`UPDATE users SET last_sync_at = ? WHERE lc_username = ?`),
   getCachedSolvedCount: db.prepare(

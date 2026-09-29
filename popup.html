@@ -357,7 +357,15 @@
               <span class="setting-label">Daily Goal</span>
               <span class="setting-desc">Problems to solve per day</span>
             </div>
-            <input type="number" id="setting-daily-goal" class="input-small" min="1" max="50" value="3" aria-label="Daily problem goal">
+            <input type="number" id="setting-daily-goal" class="input-small" min="1" max="99" value="3" aria-label="Daily problem goal">
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">Streak</span>
+              <span class="setting-desc">Your LeetSquad streak counts each day you solve at least one problem while using LeetSquad. LeetCode's own streak counts its daily challenge. Carry over uses your current LeetCode streak as a starting point.</span>
+            </div>
+            <button type="button" class="btn btn-small" id="carry-streak-btn">Carry over</button>
           </div>
         </div>
       </section>
@@ -449,6 +457,17 @@
 
           <div id="cloud-sync-status" class="cloud-sync-status hidden"></div>
 
+          <div id="share-profile-row" class="setting-item setting-sub hidden">
+            <div class="setting-info">
+              <span class="setting-label">Show me to friends</span>
+              <span class="setting-desc">Let friends see the LeetSquad badge next to your name and your current streak. Turn off to stay hidden.</span>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="setting-share-profile" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
           <div id="cloud-sync-api-key" class="api-key-row hidden">
             <label class="api-key-label" for="api-key-input">API key</label>
             <div class="api-key-controls">
@@ -483,6 +502,7 @@
         <span class="goal-text" id="goal-text">0/3 today</span>
       </div>
       <span class="goal-streak" id="goal-streak">🔥 0 day streak</span>
+      <button type="button" class="goal-open-btn" id="open-problem-btn" title="Open a problem to solve">Open today's question</button>
     </footer>
 
     <!-- Cloud Sync verification modal -->

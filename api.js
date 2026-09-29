@@ -651,6 +651,27 @@ const LeetCodeAPI = {
     }
   }),
 
+  // LeetCode's daily coding challenge problem.
+  async getDailyChallenge() {
+    const query = `
+      query questionOfToday {
+        activeDailyCodingChallengeQuestion {
+          link
+          question { titleSlug title }
+        }
+      }
+    `;
+    try {
+      const data = await LeetCodeAPI.graphqlQuery(query, {});
+      const q = data?.activeDailyCodingChallengeQuestion;
+      if (!q) return null;
+      return { link: q.link || null, slug: q.question?.titleSlug || null, title: q.question?.title || null };
+    } catch (error) {
+      console.error('Error fetching daily challenge:', error);
+      return null;
+    }
+  },
+
   // ============= Composite Data Methods =============
 
   async getFullUserData(username) {

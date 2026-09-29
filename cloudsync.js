@@ -243,6 +243,57 @@ const CloudSync = {
     }
   },
 
+  // === Profile presence (installed badge + shared streak) ===
+
+  async getShareProfile() {
+    const token = await this._jwtIfEnabled();
+    if (!token) return null;
+    try {
+      const r = await fetch(`${this.BASE}/profile/me`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!r.ok) return null;
+      const body = await r.json();
+      return typeof body.share_profile === 'boolean' ? body.share_profile : null;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  async setShareProfile(enabled) {
+    const token = await this._jwtIfEnabled();
+    if (!token) return null;
+    try {
+      const r = await fetch(`${this.BASE}/profile/me`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ share_profile: !!enabled }),
+      });
+      if (!r.ok) return null;
+      return await r.json();
+    } catch (e) {
+      return null;
+    }
+  },
+
+  // Which of the given handles are opted-in LeetSquad members, plus their streaks. { [username]: { member, streak } }.
+  async getPresence(usernames) {
+    const token = await this._jwtIfEnabled();
+    if (!token || !Array.isArray(usernames) || usernames.length === 0) return null;
+    try {
+      const r = await fetch(`${this.BASE}/profile/presence`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ usernames }),
+      });
+      if (!r.ok) return null;
+      const body = await r.json();
+      return body && typeof body.presence === 'object' ? body.presence : null;
+    } catch (e) {
+      return null;
+    }
+  },
+
   // Disconnect locally only; server data is retained by design (delete via Settings > Delete my data).
   async disconnect() {
     await this.clearToken();

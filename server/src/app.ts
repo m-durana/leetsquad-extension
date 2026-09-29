@@ -6,6 +6,7 @@ import { syncRouter } from './routes/sync';
 import { userRouter } from './routes/user';
 import { friendsRouter } from './routes/friends';
 import { dailyGoalsRouter } from './routes/daily-goals';
+import { profileRouter } from './routes/profile';
 import { createV1Router } from './routes/v1';
 import { config } from './config';
 
@@ -39,6 +40,7 @@ export function createApp() {
   app.use('/user', userRouter);
   app.use('/friends', friendsRouter);
   app.use('/daily-goals', dailyGoalsRouter);
+  app.use('/profile', profileRouter);
   app.use('/api/v1', createV1Router());
 
   app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
