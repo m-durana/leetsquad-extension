@@ -45,6 +45,10 @@ profileRouter.post('/presence', postLimiter, requireAuth, (req: AuthedRequest, r
   const parsed = lookupBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'bad_body' });
 
+  const me = req.auth!.lc_username;
+  const meRow = stmts.getShareProfile.get(me) as { share_profile: number } | undefined;
+  if (meRow && meRow.share_profile === 0) return res.json({ presence: {} });
+
   const names = Array.from(new Set(
     parsed.data.usernames.filter(isValidUsername).map(canonicalUsername)
   )).slice(0, MAX_LOOKUP);

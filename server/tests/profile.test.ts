@@ -155,4 +155,15 @@ describe('POST /profile/presence', () => {
     expect(r.status).toBe(200);
     expect(r.body.presence).toEqual({});
   });
+
+  it('reciprocity: an opted-out requester sees nobody', async () => {
+    addUser('alice', 0);
+    addUser('bob', 1);
+    const r = await request(app)
+      .post('/profile/presence')
+      .set('Authorization', jwt('alice'))
+      .send({ usernames: ['bob'] });
+    expect(r.status).toBe(200);
+    expect(r.body.presence).toEqual({});
+  });
 });
