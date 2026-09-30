@@ -77,7 +77,9 @@ const LeetSquadUtils = {
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
     if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-    return `${Math.floor(seconds / 604800)}w ago`;
+    if (seconds < 2629800) return `${Math.floor(seconds / 604800)}w ago`;
+    if (seconds < 31557600) return `${Math.floor(seconds / 2629800)}mo ago`;
+    return `${Math.floor(seconds / 31557600)}y ago`;
   },
 
   // Format timestamp (in ms) to human-readable "time ago" string
@@ -87,7 +89,9 @@ const LeetSquadUtils = {
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
     if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-    return `${Math.floor(seconds / 604800)}w ago`;
+    if (seconds < 2629800) return `${Math.floor(seconds / 604800)}w ago`;
+    if (seconds < 31557600) return `${Math.floor(seconds / 2629800)}mo ago`;
+    return `${Math.floor(seconds / 31557600)}y ago`;
   },
 
   // Sanitize for safe HTML in content AND attributes (escapes &<> plus quotes).

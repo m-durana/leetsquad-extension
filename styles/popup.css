@@ -32,7 +32,7 @@
 body {
   width: 380px;
   min-height: 280px;
-  max-height: 600px;
+  max-height: 500px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
@@ -49,7 +49,7 @@ a:hover { opacity: 0.85; }
   display: flex;
   flex-direction: column;
   min-height: 280px;
-  max-height: 600px;
+  max-height: 500px;
   position: relative;
 }
 
@@ -58,9 +58,8 @@ a:hover { opacity: 0.85; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
+  padding: 11px 16px;
   background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border);
 }
 
 .logo {
@@ -112,7 +111,6 @@ a:hover { opacity: 0.85; }
 .tabs {
   display: flex;
   background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border);
   padding: 4px;
   gap: 4px;
 }
@@ -215,8 +213,6 @@ a:hover { opacity: 0.85; }
   font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
   margin-bottom: 12px;
 }
 
@@ -338,14 +334,13 @@ a:hover { opacity: 0.85; }
   gap: 12px;
   padding: 12px;
   background: var(--bg-secondary);
-  border: 1px solid var(--border);
+  border: none;
   border-radius: var(--radius);
   transition: all 0.2s ease;
 }
 
 .friend-card:hover {
   background: var(--bg-tertiary);
-  border-color: rgba(255, 161, 22, 0.3);
 }
 
 .friend-avatar {
@@ -544,7 +539,7 @@ a:hover { opacity: 0.85; }
   gap: 12px;
   padding: 12px;
   background: var(--bg-secondary);
-  border: 1px solid var(--border);
+  border: none;
   border-radius: var(--radius);
   transition: all 0.2s ease;
 }
@@ -555,21 +550,19 @@ a:hover { opacity: 0.85; }
 
 .leaderboard-item.top-1 {
   background: linear-gradient(135deg, rgba(255, 215, 0, 0.15) 0%, rgba(255, 165, 0, 0.1) 100%);
-  border-color: rgba(255, 215, 0, 0.3);
 }
 
 .leaderboard-item.top-2 {
   background: linear-gradient(135deg, rgba(192, 192, 192, 0.15) 0%, rgba(169, 169, 169, 0.1) 100%);
-  border-color: rgba(192, 192, 192, 0.3);
 }
 
 .leaderboard-item.top-3 {
   background: linear-gradient(135deg, rgba(205, 127, 50, 0.15) 0%, rgba(184, 115, 51, 0.1) 100%);
-  border-color: rgba(205, 127, 50, 0.3);
 }
 
+/* Your row: same background as everyone, marked only by an accent outline (unless on a medal) */
 .leaderboard-item.is-me {
-  border-color: var(--accent);
+  border: 1.5px solid var(--accent);
 }
 
 .rank {
@@ -588,6 +581,8 @@ a:hover { opacity: 0.85; }
 .rank.bronze { color: #cd7f32; }
 
 .lb-avatar {
+  position: relative;
+  overflow: visible;
   width: 36px;
   height: 36px;
   border-radius: var(--radius-sm);
@@ -601,8 +596,33 @@ a:hover { opacity: 0.85; }
   font-size: 14px;
 }
 
+/* Streak lives on the avatar corner; tight, semi-transparent pill, no outline */
+.lb-streak-badge {
+  position: absolute;
+  bottom: -3px;
+  right: -9px;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--warning);
+  background: rgba(0, 0, 0, 0.45);
+  padding: 0 4px 0 2px;
+  border-radius: 5px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.lb-streak-badge .flame {
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+}
+
 .lb-info {
   flex: 1;
+  min-width: 0;
 }
 
 .lb-name {
@@ -612,17 +632,29 @@ a:hover { opacity: 0.85; }
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.lb-name .lb-name-link {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.lb-name .you-tag,
+.lb-name .global-rank {
+  flex-shrink: 0;
 }
 
 .global-rank {
   font-size: 10px;
   font-weight: 500;
   color: var(--text-muted);
-  background: rgba(255, 161, 22, 0.1);
+  background: rgba(255, 255, 255, 0.05);
   padding: 2px 6px;
   border-radius: 4px;
-  border: 1px solid rgba(255, 161, 22, 0.2);
 }
 
 .lb-name-link {
@@ -662,7 +694,6 @@ a:hover { opacity: 0.85; }
 .lb-label {
   font-size: 10px;
   color: var(--text-muted);
-  text-transform: uppercase;
   margin-top: 2px;
 }
 
@@ -680,7 +711,7 @@ a:hover { opacity: 0.85; }
 
 .filter-toggle {
   background: var(--bg-tertiary);
-  border: 1px solid var(--border);
+  border: none;
   border-radius: var(--radius-sm);
   padding: 6px 10px;
   cursor: pointer;
@@ -696,7 +727,6 @@ a:hover { opacity: 0.85; }
 .filter-toggle:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
-  border-color: rgba(255, 161, 22, 0.3);
 }
 
 .filter-toggle svg {
@@ -705,7 +735,6 @@ a:hover { opacity: 0.85; }
 
 .filter-toggle.active {
   background: rgba(255, 161, 22, 0.15);
-  border-color: rgba(255, 161, 22, 0.3);
   color: var(--accent);
 }
 
@@ -726,15 +755,15 @@ a:hover { opacity: 0.85; }
   padding: 12px;
   background: var(--bg-secondary);
   border-radius: var(--radius);
-  border-left: 3px solid var(--text-muted);
 }
 
+/* New solve reads lighter; a repeat solve reads darker. No left rule. */
 .activity-item.first-solve {
-  border-left-color: #ffd700;
+  background: #2f2f2f;
 }
 
 .activity-item.additional-solve {
-  border-left-color: var(--text-muted);
+  background: #202020;
 }
 
 .activity-avatar {
@@ -960,7 +989,7 @@ a:hover { opacity: 0.85; }
   padding: 10px;
   margin-top: 4px;
   background: var(--bg-secondary);
-  border: 1px dashed var(--border);
+  border: none;
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
   font-size: 12px;
@@ -971,7 +1000,6 @@ a:hover { opacity: 0.85; }
 
 .load-more-btn:hover {
   background: var(--bg-tertiary);
-  border-color: var(--accent);
   color: var(--accent);
 }
 
@@ -1033,7 +1061,7 @@ a:hover { opacity: 0.85; }
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px 18px;
+  padding: 11px 16px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
 }
@@ -1049,7 +1077,9 @@ a:hover { opacity: 0.85; }
   overflow-y: auto;
 }
 
-#settings-panel .settings-content { padding-top: 0; }
+.settings-panel .settings-content { padding-top: 0; }
+#friends-panel .settings-content,
+#achievements-panel .settings-content { padding-top: 16px; }
 
 .setting-item {
   display: flex;
@@ -1377,6 +1407,58 @@ a:hover { opacity: 0.85; }
 .goal-open-btn:hover { background: var(--accent-light); }
 .goal-open-btn:disabled { opacity: 0.5; cursor: default; }
 
+/* ===== Header streak (moved from the footer) + Daily button + overflow menu ===== */
+.header .rec-streak { font-size: 22px; }
+.header .rec-streak .flame {
+  font-size: 27px;
+  margin-left: 0;
+  top: 0;
+  transform: translate(-4px, 0);
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent);
+}
+.header .rec-streak .txt { transform: translate(-4px, 0); top: 0; margin-left: 0; }
+
+/* SVG flame: 1em tracks the surrounding font-size; flex-centered against the digits */
+.flame-ico { width: 1em; height: 1em; display: block; }
+
+.header-right { display: flex; align-items: center; gap: 8px; }
+.header .goal-open-btn { height: 34px; padding: 0 12px; font-size: 14px; }
+.header .goal-open-btn svg { width: 15px; height: 15px; }
+
+.kebab-wrap { position: relative; }
+.kebab-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  background: var(--bg-tertiary);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 6px;
+  min-width: 184px;
+  z-index: 200;
+  display: none;
+}
+.kebab-dropdown.open { display: block; }
+.kebab-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 10px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+}
+.kebab-item:hover { background: var(--bg-hover); }
+.kebab-item svg { color: var(--text-secondary); flex-shrink: 0; }
+
 /* "Uses LeetSquad" badge + shared streak next to a name */
 .ls-member-badge {
   width: 13px;
@@ -1392,7 +1474,13 @@ a:hover { opacity: 0.85; }
   color: var(--warning);
   margin-left: 2px;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  vertical-align: -2px;
 }
+
+.ls-streak .flame { display: inline-flex; align-items: center; }
 
 /* ===== MUTUALS TAB ===== */
 
@@ -1416,7 +1504,7 @@ a:hover { opacity: 0.85; }
   flex: 1;
   padding: 10px 14px;
   background: var(--bg-tertiary);
-  border: 1px solid var(--border);
+  border: none;
   border-radius: var(--radius-sm);
   color: var(--text-primary);
   font-size: 14px;
@@ -1425,16 +1513,13 @@ a:hover { opacity: 0.85; }
   transition: all 0.2s ease;
 }
 
-.mutuals-select:hover {
-  border-color: rgba(255, 161, 22, 0.3);
-}
-
-.mutuals-select:focus {
-  border-color: var(--accent);
-}
-
 /* Comparison View */
 .mutuals-comparison.hidden {
+  display: none;
+}
+
+/* Hide the "select a friend" prompt once a comparison is active */
+.mutuals-empty.hidden {
   display: none;
 }
 
@@ -1448,7 +1533,7 @@ a:hover { opacity: 0.85; }
   padding: 16px;
   background: var(--bg-secondary);
   border-radius: var(--radius);
-  border: 1px solid var(--border);
+  border: none;
 }
 
 .mutuals-user {
@@ -1605,13 +1690,15 @@ a:hover { opacity: 0.85; }
   padding: 10px 12px;
   background: var(--bg-secondary);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
+  border: none;
+  cursor: pointer;
   transition: all 0.2s ease;
+  text-decoration: none;
+  color: inherit;
 }
 
 .mutuals-problem:hover {
   background: var(--bg-tertiary);
-  border-color: rgba(255, 161, 22, 0.3);
 }
 
 .mutuals-problem-info {
@@ -1627,15 +1714,6 @@ a:hover { opacity: 0.85; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.mutuals-problem-title a {
-  color: inherit;
-  text-decoration: none;
-}
-
-.mutuals-problem-title a:hover {
-  color: #4dabf7;
 }
 
 .mutuals-problem-meta {
@@ -1673,8 +1751,6 @@ a:hover { opacity: 0.85; }
 .mutuals-problem-stat-label {
   font-size: 9px;
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
   margin-bottom: 2px;
 }
 
@@ -1690,7 +1766,6 @@ a:hover { opacity: 0.85; }
 
 .mutuals-problem-stat.winner {
   background: rgba(0, 184, 163, 0.15);
-  border: 1px solid rgba(0, 184, 163, 0.3);
 }
 
 .mutuals-problem-stat.winner .mutuals-problem-stat-value {
@@ -1852,8 +1927,6 @@ a:hover { opacity: 0.85; }
 }
 .api-key-label {
   font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   color: var(--text-muted);
 }
 .api-key-controls {
@@ -2004,7 +2077,7 @@ body:has(.settings-panel:not(.hidden)) #verify-banner { display: none !important
 
 .ach-card {
   background: var(--bg-secondary);
-  border: 1px solid var(--border);
+  border: none;
   border-radius: 10px;
   padding: 12px 10px;
   display: flex;
@@ -2012,13 +2085,12 @@ body:has(.settings-panel:not(.hidden)) #verify-banner { display: none !important
   align-items: center;
   text-align: center;
   gap: 6px;
-  transition: transform 0.15s ease, border-color 0.15s ease;
+  transition: transform 0.15s ease;
   position: relative;
 }
 
 .ach-card:hover {
   transform: translateY(-1px);
-  border-color: var(--accent, #ffa116);
 }
 
 .ach-icon {

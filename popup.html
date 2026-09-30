@@ -8,36 +8,38 @@
 </head>
 <body>
   <div class="app">
-    <!-- Header -->
+    <!-- Header: streak (where the wordmark was) + Daily + overflow menu -->
     <header class="header">
       <div class="logo">
-        <img src="icons/logo.png" alt="LeetSquad" class="logo-img">
-        <span>LeetSquad</span>
+        <span class="rec-streak">
+          <span class="flame off" id="goal-flame"></span><span class="txt" id="goal-streak"><span class="num">0</span> day streak</span>
+          <span class="mini-ring" id="goal-ring" style="display:none">
+            <svg viewBox="0 0 26 26"><circle cx="13" cy="13" r="11" fill="none" stroke="var(--bg-tertiary)" stroke-width="3"/><circle id="goal-ring-fill" cx="13" cy="13" r="11" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" stroke-dasharray="69.1" stroke-dashoffset="69.1"/></svg>
+            <span class="lbl" id="goal-ring-label">0/0</span>
+          </span>
+        </span>
       </div>
-      <div class="header-actions">
-        <button id="friends-btn" class="icon-btn" title="Manage Friends">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-            <circle cx="9" cy="7" r="4"/>
-            <line x1="19" y1="8" x2="19" y2="14"/>
-            <line x1="22" y1="11" x2="16" y2="11"/>
-          </svg>
-        </button>
-        <button id="achievements-btn" class="icon-btn" title="Achievements">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M8 21h8"/>
-            <path d="M12 17v4"/>
-            <path d="M7 4h10v5a5 5 0 0 1-10 0V4z"/>
-            <path d="M17 5h2a2 2 0 0 1 2 2v1a3 3 0 0 1-3 3h-1"/>
-            <path d="M7 5H5a2 2 0 0 0-2 2v1a3 3 0 0 0 3 3h1"/>
-          </svg>
-        </button>
-        <button id="settings-btn" class="icon-btn" title="Settings">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-          </svg>
-        </button>
+      <div class="header-right">
+        <button type="button" class="goal-open-btn" id="open-problem-btn" data-mode="daily" title="Open today's LeetCode question"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span>Daily</span></button>
+        <div class="header-actions kebab-wrap">
+          <button id="kebab-btn" class="icon-btn" title="Menu" aria-label="Menu" aria-haspopup="true" aria-expanded="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+          </button>
+          <div id="kebab-dropdown" class="kebab-dropdown">
+            <button id="friends-btn" class="kebab-item" title="Manage Friends">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+              Friends
+            </button>
+            <button id="achievements-btn" class="kebab-item" title="Achievements">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M17 5h2a2 2 0 0 1 2 2v1a3 3 0 0 1-3 3h-1"/><path d="M7 5H5a2 2 0 0 0-2 2v1a3 3 0 0 0 3 3h1"/></svg>
+              Achievements
+            </button>
+            <button id="settings-btn" class="kebab-item" title="Settings">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              Settings
+            </button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -82,9 +84,6 @@
     <main class="content">
       <!-- Leaderboard Tab -->
       <section id="leaderboard-tab" class="tab-content active">
-        <div class="leaderboard-header">
-          <h2 id="leaderboard-title">All Time Rankings</h2>
-        </div>
         <div class="period-selector">
           <button class="period-btn" data-period="week">Week</button>
           <button class="period-btn" data-period="month">Month</button>
@@ -492,18 +491,6 @@
         </div>
       </section>
     </main>
-
-    <!-- Daily Goal Banner -->
-    <footer class="daily-goal" id="daily-goal">
-      <span class="rec-streak">
-        <span class="flame off" id="goal-flame">🔥</span><span class="txt" id="goal-streak"><span class="num">0</span> day streak</span>
-        <span class="mini-ring" id="goal-ring" style="display:none">
-          <svg viewBox="0 0 26 26"><circle cx="13" cy="13" r="11" fill="none" stroke="var(--bg-tertiary)" stroke-width="3"/><circle id="goal-ring-fill" cx="13" cy="13" r="11" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" stroke-dasharray="69.1" stroke-dashoffset="69.1"/></svg>
-          <span class="lbl" id="goal-ring-label">0/0</span>
-        </span>
-      </span>
-      <button type="button" class="goal-open-btn" id="open-problem-btn" data-mode="daily" title="Open today's LeetCode question"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span>Daily</span></button>
-    </footer>
 
     <!-- Cloud Sync verification modal -->
     <div id="cloud-verify-modal" class="modal hidden" role="dialog" aria-labelledby="cloud-verify-title" aria-modal="true">

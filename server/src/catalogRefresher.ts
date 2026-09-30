@@ -1,7 +1,8 @@
 import { stmts } from './db';
 import { fetchProblemCatalog } from './leetcode';
 
-const REFRESH_INTERVAL_MS = 24 * 60 * 60_000;
+const REFRESH_INTERVAL_MS = 24 * 60 * 60_000; // how old is too old
+const CHECK_INTERVAL_MS = 60 * 60_000; // hourly tick that only refreshes when the DATA is stale
 let intervalHandle: NodeJS.Timeout | null = null;
 
 export async function refreshProblemCatalogNow(): Promise<{ ok: boolean; count?: number; error?: string }> {
@@ -26,17 +27,19 @@ function logCatalogRefresh(kind: string, p: ReturnType<typeof refreshProblemCata
   }).catch((e) => console.error(`catalog ${kind} refresh threw:`, (e as Error).message));
 }
 
-// Refresh now only if the cache is missing/stale; schedule a recurring refresh either way.
 export function startCatalogRefresher(): void {
-  const row = stmts.getProblemCatalog.get() as { updated_at: number } | undefined;
-  const stale = !row || Date.now() - row.updated_at > REFRESH_INTERVAL_MS;
-  if (stale) {
-    logCatalogRefresh('initial', refreshProblemCatalogNow());
-  }
+  // Anchor staleness to the catalog's updated_at, not process start, so restarts can't
+  // reset the clock and let the catalog silently drift toward ~48h old.
+  const maybeRefresh = (kind: string) => {
+    const row = stmts.getProblemCatalog.get() as { updated_at: number } | undefined;
+    if (!row || Date.now() - row.updated_at > REFRESH_INTERVAL_MS) {
+      logCatalogRefresh(kind, refreshProblemCatalogNow());
+    }
+  };
+
+  maybeRefresh('initial');
   if (intervalHandle) clearInterval(intervalHandle);
-  intervalHandle = setInterval(() => {
-    logCatalogRefresh('recurring', refreshProblemCatalogNow());
-  }, REFRESH_INTERVAL_MS);
+  intervalHandle = setInterval(() => maybeRefresh('recurring'), CHECK_INTERVAL_MS);
   intervalHandle.unref();
 }
 

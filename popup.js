@@ -140,7 +140,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Leaderboard elements
   const leaderboardList = document.getElementById('leaderboard-list');
-  const leaderboardTitle = document.getElementById('leaderboard-title');
 
   // Activity elements
   const activityFeed = document.getElementById('activity-feed');
@@ -195,6 +194,35 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Use shared utilities (loaded via popup.html script tag)
   const getAvatarGradient = LeetSquadUtils.getAvatarGradient;
   const escapeHtml = LeetSquadUtils.escapeHtml;
+
+  // Fluent Color flame (Microsoft Fluent Emoji, MIT), inlined so we control size + placement.
+  const FLUENT_FLAME_INNER = '<path d="M12.5554 8.93525C14.0921 6.53779 15.0016 4.32368 15.4762 2.75834C15.6581 2.1584 16.4264 1.91265 16.8824 2.34277C23.7549 8.82401 26.0011 13.7722 26.4493 19.4908C26.7774 25.0221 24.0587 29.944 16.7618 29.944C9.91109 29.944 4.85547 25.1627 5.54294 17.5846C5.95379 13.0556 7.7145 9.60538 9.12218 7.55149C9.56028 6.91229 10.473 6.90302 10.9779 7.49092L12.237 8.95719C12.3238 9.05822 12.4835 9.04736 12.5554 8.93525Z" fill="url(#p0)"/><path d="M12.5554 8.93525C14.0921 6.53779 15.0016 4.32368 15.4762 2.75834C15.6581 2.1584 16.4264 1.91265 16.8824 2.34277C23.7549 8.82401 26.0011 13.7722 26.4493 19.4908C26.7774 25.0221 24.0587 29.944 16.7618 29.944C9.91109 29.944 4.85547 25.1627 5.54294 17.5846C5.95379 13.0556 7.7145 9.60538 9.12218 7.55149C9.56028 6.91229 10.473 6.90302 10.9779 7.49092L12.237 8.95719C12.3238 9.05822 12.4835 9.04736 12.5554 8.93525Z" fill="url(#p1)"/><path d="M12.5554 8.93525C14.0921 6.53779 15.0016 4.32368 15.4762 2.75834C15.6581 2.1584 16.4264 1.91265 16.8824 2.34277C23.7549 8.82401 26.0011 13.7722 26.4493 19.4908C26.7774 25.0221 24.0587 29.944 16.7618 29.944C9.91109 29.944 4.85547 25.1627 5.54294 17.5846C5.95379 13.0556 7.7145 9.60538 9.12218 7.55149C9.56028 6.91229 10.473 6.90302 10.9779 7.49092L12.237 8.95719C12.3238 9.05822 12.4835 9.04736 12.5554 8.93525Z" fill="url(#p2)"/><path d="M12.5554 8.93525C14.0921 6.53779 15.0016 4.32368 15.4762 2.75834C15.6581 2.1584 16.4264 1.91265 16.8824 2.34277C23.7549 8.82401 26.0011 13.7722 26.4493 19.4908C26.7774 25.0221 24.0587 29.944 16.7618 29.944C9.91109 29.944 4.85547 25.1627 5.54294 17.5846C5.95379 13.0556 7.7145 9.60538 9.12218 7.55149C9.56028 6.91229 10.473 6.90302 10.9779 7.49092L12.237 8.95719C12.3238 9.05822 12.4835 9.04736 12.5554 8.93525Z" fill="url(#p3)"/><path d="M12.5554 8.93525C14.0921 6.53779 15.0016 4.32368 15.4762 2.75834C15.6581 2.1584 16.4264 1.91265 16.8824 2.34277C23.7549 8.82401 26.0011 13.7722 26.4493 19.4908C26.7774 25.0221 24.0587 29.944 16.7618 29.944C9.91109 29.944 4.85547 25.1627 5.54294 17.5846C5.95379 13.0556 7.7145 9.60538 9.12218 7.55149C9.56028 6.91229 10.473 6.90302 10.9779 7.49092L12.237 8.95719C12.3238 9.05822 12.4835 9.04736 12.5554 8.93525Z" fill="url(#p4)"/><path d="M12.5554 8.93525C14.0921 6.53779 15.0016 4.32368 15.4762 2.75834C15.6581 2.1584 16.4264 1.91265 16.8824 2.34277C23.7549 8.82401 26.0011 13.7722 26.4493 19.4908C26.7774 25.0221 24.0587 29.944 16.7618 29.944C9.91109 29.944 4.85547 25.1627 5.54294 17.5846C5.95379 13.0556 7.7145 9.60538 9.12218 7.55149C9.56028 6.91229 10.473 6.90302 10.9779 7.49092L12.237 8.95719C12.3238 9.05822 12.4835 9.04736 12.5554 8.93525Z" fill="url(#p5)"/><path d="M12.5554 8.93525C14.0921 6.53779 15.0016 4.32368 15.4762 2.75834C15.6581 2.1584 16.4264 1.91265 16.8824 2.34277C23.7549 8.82401 26.0011 13.7722 26.4493 19.4908C26.7774 25.0221 24.0587 29.944 16.7618 29.944C9.91109 29.944 4.85547 25.1627 5.54294 17.5846C5.95379 13.0556 7.7145 9.60538 9.12218 7.55149C9.56028 6.91229 10.473 6.90302 10.9779 7.49092L12.237 8.95719C12.3238 9.05822 12.4835 9.04736 12.5554 8.93525Z" fill="url(#p6)"/><path d="M12.5554 8.93525C14.0921 6.53779 15.0016 4.32368 15.4762 2.75834C15.6581 2.1584 16.4264 1.91265 16.8824 2.34277C23.7549 8.82401 26.0011 13.7722 26.4493 19.4908C26.7774 25.0221 24.0587 29.944 16.7618 29.944C9.91109 29.944 4.85547 25.1627 5.54294 17.5846C5.95379 13.0556 7.7145 9.60538 9.12218 7.55149C9.56028 6.91229 10.473 6.90302 10.9779 7.49092L12.237 8.95719C12.3238 9.05822 12.4835 9.04736 12.5554 8.93525Z" fill="url(#p7)"/><g filter="url(#fi)"><path d="M10.1782 19.8769C11.4805 16.7776 14.1528 13.348 15.9574 11.4875C16.4673 10.9618 17.2915 10.9524 17.8301 11.4487C21.2913 14.6377 22.3332 17.5207 23.2174 20.8769C24.1372 24.3686 23.2174 29.9946 16.2958 29.9946C10.3351 29.9946 8.27019 24.4174 10.1782 19.8769Z" fill="url(#p8)"/><path d="M10.1782 19.8769C11.4805 16.7776 14.1528 13.348 15.9574 11.4875C16.4673 10.9618 17.2915 10.9524 17.8301 11.4487C21.2913 14.6377 22.3332 17.5207 23.2174 20.8769C24.1372 24.3686 23.2174 29.9946 16.2958 29.9946C10.3351 29.9946 8.27019 24.4174 10.1782 19.8769Z" fill="url(#p9)"/><path d="M10.1782 19.8769C11.4805 16.7776 14.1528 13.348 15.9574 11.4875C16.4673 10.9618 17.2915 10.9524 17.8301 11.4487C21.2913 14.6377 22.3332 17.5207 23.2174 20.8769C24.1372 24.3686 23.2174 29.9946 16.2958 29.9946C10.3351 29.9946 8.27019 24.4174 10.1782 19.8769Z" fill="url(#p10)"/></g><path d="M10.1782 19.8769C11.4805 16.7776 14.1528 13.348 15.9574 11.4875C16.4673 10.9618 17.2915 10.9524 17.8301 11.4487C21.2913 14.6377 22.3332 17.5207 23.2174 20.8769C24.1372 24.3686 23.2174 29.9946 16.2958 29.9946C10.3351 29.9946 8.27019 24.4174 10.1782 19.8769Z" fill="url(#p11)"/><path d="M10.1782 19.8769C11.4805 16.7776 14.1528 13.348 15.9574 11.4875C16.4673 10.9618 17.2915 10.9524 17.8301 11.4487C21.2913 14.6377 22.3332 17.5207 23.2174 20.8769C24.1372 24.3686 23.2174 29.9946 16.2958 29.9946C10.3351 29.9946 8.27019 24.4174 10.1782 19.8769Z" fill="url(#p12)"/><g filter="url(#ff1)"><path d="M11.8137 11.5385C14.1291 8.14851 15.4831 4.48144 15.8966 3.57653C15.2936 8.21133 13.5364 11.6047 10.2287 15.9746C7.58254 19.4706 7.10476 22.4634 7.12774 23.1917C6.30081 17.63 8.91941 15.776 11.8137 11.5385Z" fill="url(#p13)"/></g><g filter="url(#ff2)"><path d="M9.81366 7.87422C8.5136 9.4879 5.9295 13.9638 5.99348 18.9582C7.27492 13.8358 10.2692 12.2215 9.81366 7.87422Z" fill="url(#p14)"/></g><defs><filter id="fi" x="9.48987" y="11.0846" width="14.5255" height="18.9099" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/><feOffset dx="0.5"/><feGaussianBlur stdDeviation="0.25"/><feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/><feColorMatrix type="matrix" values="0 0 0 0 0.952941 0 0 0 0 0.615686 0 0 0 0 0.364706 0 0 0 1 0"/><feBlend mode="normal" in2="shape" result="effect1_innerShadow"/></filter><filter id="ff1" x="5.7229" y="2.32654" width="11.4237" height="22.1152" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur stdDeviation="0.625" result="effect1_foregroundBlur"/></filter><filter id="ff2" x="4.49231" y="6.37427" width="6.86804" height="14.0839" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur stdDeviation="0.75" result="effect1_foregroundBlur"/></filter><radialGradient id="p0" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(24.0023 19.72) rotate(-179.474) scale(17.0988 25.7861)"><stop stop-color="#FF953D"/><stop offset="1" stop-color="#FF5141"/></radialGradient><radialGradient id="p1" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(10.3724 15.6549) rotate(-157.937) scale(10.3441 17.8495)"><stop stop-color="#CE5327"/><stop offset="1" stop-color="#CE5327" stop-opacity="0"/></radialGradient><linearGradient id="p2" x1="18.3364" y1="29.944" x2="18.3364" y2="24.8455" gradientUnits="userSpaceOnUse"><stop stop-color="#FF7583"/><stop offset="1" stop-color="#FF7583" stop-opacity="0"/></linearGradient><radialGradient id="p3" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(4.95718 14.3914) rotate(24.0149) scale(3.10465 25.6991)"><stop stop-color="#FFAA7B"/><stop offset="1" stop-color="#FFAA7B" stop-opacity="0"/></radialGradient><radialGradient id="p4" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(9.31032 6.25095) rotate(77.3196) scale(3.84035 4.79187)"><stop stop-color="#FF5E47"/><stop offset="1" stop-color="#FF5E47" stop-opacity="0"/></radialGradient><radialGradient id="p5" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(16.429 1.36584) rotate(87.8819) scale(10.1374 9.38321)"><stop stop-color="#FF2F3C"/><stop offset="1" stop-color="#FF2F3C" stop-opacity="0"/></radialGradient><radialGradient id="p6" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(13.9 4.79911) rotate(25.3285) scale(2.29895 4.61352)"><stop stop-color="#FF846C"/><stop offset="1" stop-color="#FF846C" stop-opacity="0"/></radialGradient><radialGradient id="p7" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(12.4577 8.20959) rotate(113.224) scale(2.27837 0.522116)"><stop stop-color="#FFA682"/><stop offset="1" stop-color="#FFA682" stop-opacity="0"/></radialGradient><radialGradient id="p8" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(21.2046 24.3762) rotate(-168.558) scale(10.0291 12.4891)"><stop stop-color="#FFDA2F"/><stop offset="1" stop-color="#FF8E41"/></radialGradient><radialGradient id="p9" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(12.4013 8.59263) rotate(69.0442) scale(14.1425 12.2879)"><stop stop-color="#FD5639"/><stop offset="1" stop-color="#FE5533" stop-opacity="0"/></radialGradient><radialGradient id="p10" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(19.239 20.6289) rotate(174.239) scale(9.79866 23.9914)"><stop offset="0.627719" stop-color="#D7812D" stop-opacity="0"/><stop offset="1" stop-color="#D7812D"/></radialGradient><linearGradient id="p11" x1="16.5026" y1="10.6122" x2="16.5026" y2="14.2595" gradientUnits="userSpaceOnUse"><stop stop-color="#F95131"/><stop offset="1" stop-color="#F95131" stop-opacity="0"/></linearGradient><radialGradient id="p12" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(22.9857 18.8023) rotate(143.063) scale(16.0546 11.6174)"><stop offset="0.772305" stop-color="#F18A52" stop-opacity="0"/><stop offset="1" stop-color="#F18A52"/></radialGradient><linearGradient id="p13" x1="14.9957" y1="4.2552" x2="7.65549" y2="22.7319" gradientUnits="userSpaceOnUse"><stop stop-color="#FF7558"/><stop offset="1" stop-color="#F38758"/></linearGradient><linearGradient id="p14" x1="9.54097" y1="8.14373" x2="5.58208" y2="19.4793" gradientUnits="userSpaceOnUse"><stop stop-color="#FF815B"/><stop offset="1" stop-color="#FF9C6D"/></linearGradient></defs>';
+  let __flameUid = 0;
+  // Fresh gradient/filter IDs per copy so multiple flames on the page don't collide.
+  function makeFlame() {
+    const s = '_f' + (__flameUid++);
+    const inner = FLUENT_FLAME_INNER
+      .replace(/id="([^"]+)"/g, (_, g) => `id="${g}${s}"`)
+      .replace(/url\(#([^)]+)\)/g, (_, g) => `url(#${g}${s})`);
+    return `<svg class="flame-ico" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">${inner}</svg>`;
+  }
+  if (goalFlame) goalFlame.innerHTML = makeFlame();
+
+  // Header overflow menu (Friends / Achievements / Settings)
+  const kebabBtn = document.getElementById('kebab-btn');
+  const kebabDropdown = document.getElementById('kebab-dropdown');
+  if (kebabBtn && kebabDropdown) {
+    kebabBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = kebabDropdown.classList.toggle('open');
+      kebabBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    document.addEventListener('click', () => {
+      if (!kebabDropdown.classList.contains('open')) return;
+      kebabDropdown.classList.remove('open');
+      kebabBtn.setAttribute('aria-expanded', 'false');
+    });
+  }
 
   // Tab switching
   tabs.forEach(tab => {
@@ -489,15 +517,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Load friends list
   const memberIconUrl = browser.runtime.getURL('icons/icon128.png');
 
-  // Inline "uses LeetSquad" badge + shared streak, from a presence map keyed by lowercased username.
-  function presenceHtml(username, presence) {
-    if (!presence) return '';
+  function presenceOf(username, presence) {
+    if (!presence) return null;
     const p = presence[String(username || '').toLowerCase()];
-    if (!p || !p.member) return '';
+    return (p && p.member) ? p : null;
+  }
+
+  // Friends list: inline "uses LeetSquad" badge + shared streak (flame + count).
+  function presenceHtml(username, presence) {
+    const p = presenceOf(username, presence);
+    if (!p) return '';
     const streak = p.streak > 0
-      ? ` <span class="ls-streak" title="LeetSquad streak">🔥${p.streak}</span>`
+      ? ` <span class="ls-streak" title="LeetSquad streak"><span class="flame">${makeFlame()}</span>${p.streak}</span>`
       : '';
     return ` <img class="ls-member-badge" src="${memberIconUrl}" alt="LeetSquad member" title="Uses LeetSquad">${streak}`;
+  }
+
+  // Leaderboard: the streak sits on the avatar corner...
+  function avatarStreakHtml(username, presence) {
+    const p = presenceOf(username, presence);
+    if (!p || !(p.streak > 0)) return '';
+    return `<span class="lb-streak-badge" title="LeetSquad streak"><span class="flame">${makeFlame()}</span>${p.streak}</span>`;
+  }
+
+  // ...and the member icon only shows on the name line when there's no streak to carry it.
+  function memberBadgeHtml(username, presence) {
+    const p = presenceOf(username, presence);
+    if (!p || p.streak > 0) return '';
+    return ` <img class="ls-member-badge" src="${memberIconUrl}" alt="LeetSquad member" title="Uses LeetSquad">`;
   }
 
   async function loadFriends() {
@@ -876,22 +923,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   periodButtons.forEach(btn => {
     btn.addEventListener('click', () => {
       const period = btn.dataset.period;
-      const headerTitle = document.querySelector('.leaderboard-header h2');
 
-      // Update active state
       periodButtons.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
 
-      // Update header text
-      if (period === 'week') {
-        headerTitle.textContent = 'Weekly Rankings';
-      } else if (period === 'month') {
-        headerTitle.textContent = 'Monthly Rankings';
-      } else {
-        headerTitle.textContent = 'All Time Rankings';
-      }
-
-      // Animate and reload with the period filter
       animateLeaderboardSort(period);
     });
   });
@@ -998,11 +1033,11 @@ document.addEventListener('DOMContentLoaded', async () => {
           ${safeAvatar ?
             `<img src="${safeAvatar}" alt="${safeName}" style="width:100%;height:100%;object-fit:cover;border-radius:6px"/>` :
             `<span style="background:${gradient};width:100%;height:100%;display:flex;align-items:center;justify-content:center;border-radius:6px;color:white;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,0.3)">${initial}</span>`
-          }
+          }${avatarStreakHtml(username, cachedPresence)}
         </div>
         <div class="lb-info">
           <div class="lb-name">
-            <a href="${profileHref}" target="_blank" class="lb-name-link">${safeName}</a>${isMe ? ' <span class="you-tag">(You)</span>' : ''}${presenceHtml(username, cachedPresence)}
+            <a href="${profileHref}" target="_blank" class="lb-name-link">${safeName}</a>${isMe ? ' <span class="you-tag">(You)</span>' : ''}${memberBadgeHtml(username, cachedPresence)}
             ${globalRank ? `<span class="global-rank" title="Global LeetCode Rank">#${escapeHtml(globalRank)}</span>` : ''}
           </div>
           <div class="lb-breakdown">
@@ -2410,11 +2445,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const friendRt = escapeHtml(friendData?.runtime || (friendTs ? LeetSquadUtils.timeAgo(friendTs) : '-'));
       const slugHref = `https://leetcode.com/problems/${encodeURIComponent(problem.titleSlug || '')}`;
       return `
-        <div class="mutuals-problem">
+        <a class="mutuals-problem" href="${slugHref}" target="_blank">
           <div class="mutuals-problem-info">
-            <div class="mutuals-problem-title">
-              <a href="${slugHref}" target="_blank">${safeTitle}</a>
-            </div>
+            <div class="mutuals-problem-title">${safeTitle}</div>
             <div class="mutuals-problem-meta">
               <span class="mutuals-problem-difficulty ${diffClass}">${safeDiff}</span>
             </div>
@@ -2429,7 +2462,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               <span class="mutuals-problem-stat-value ${friendData?.runtime ? 'runtime' : ''}">${friendRt}</span>
             </div>
           </div>
-        </div>
+        </a>
       `;
     }).join('');
 
