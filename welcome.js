@@ -1,14 +1,42 @@
 (async () => {
+  const LC_GRAPHQL = 'https://leetcode.com/graphql/';
+
+  const pageIds = { verify: 'page-verify', carry: 'page-carry', done: 'page-done' };
+  function showPage(name) {
+    Object.entries(pageIds).forEach(([k, id]) => document.getElementById(id).classList.toggle('on', k === name));
+  }
+
+  const verifyTitle = document.getElementById('verify-title');
   const verifyBtn = document.getElementById('verify-btn');
   const skipBtn = document.getElementById('skip-btn');
   const warning = document.getElementById('signin-warning');
   const errorEl = document.getElementById('error');
-  const postVerify = document.getElementById('post-verify');
+
+  const carryDays = document.getElementById('carry-days');
+  const carryBtnDays = document.getElementById('carry-btn-days');
+  const carryBtn = document.getElementById('carry-btn');
+  const carrySkipBtn = document.getElementById('carry-skip-btn');
+  const carryError = document.getElementById('carry-error');
+
   const openExtBtn = document.getElementById('open-ext-btn');
-  const carryStreakBtn = document.getElementById('carry-streak-btn');
+
+  let signedIn = false, username = null, lcStreak = 0;
+
+  const markDone = () => browser.storage.local.set({ leetsquad_welcome_skipped: Date.now() });
+
+  // After verify or skip on page 1: go to the carry page only if there's a streak, else straight to done.
+  function advanceFromVerify() {
+    if (lcStreak > 0) {
+      carryDays.textContent = lcStreak;
+      carryBtnDays.textContent = lcStreak;
+      showPage('carry');
+    } else {
+      showPage('done');
+    }
+  }
 
   // openPopup needs a user gesture and is unsupported on older browsers; fall back to a toolbar hint.
-  openExtBtn?.addEventListener('click', async () => {
+  openExtBtn.addEventListener('click', async () => {
     try {
       await browser.action.openPopup();
     } catch (e) {
@@ -17,15 +45,34 @@
     }
   });
 
-  skipBtn.addEventListener('click', () => {
-    browser.storage.local.set({ leetsquad_welcome_skipped: Date.now() });
-    window.close();
+  skipBtn.addEventListener('click', () => { markDone(); advanceFromVerify(); });
+  carrySkipBtn.addEventListener('click', () => showPage('done'));
+
+  carryBtn.addEventListener('click', async () => {
+    carryBtn.disabled = true;
+    carrySkipBtn.disabled = true;
+    carryError.classList.add('hidden');
+    carryBtn.innerHTML = '<span class="spinner"></span> Carrying over…';
+    const r = await browser.runtime.sendMessage({ action: 'carryOverStreak', username })
+      .then((x) => x || { ok: false })
+      .catch(() => ({ ok: false }));
+    if (r.ok && r.streak > 0) {
+      carryBtn.textContent = `Carried over ${r.streak} days ✓`;
+      setTimeout(() => showPage('done'), 900);
+    } else if (r.ok) {
+      showPage('done');
+    } else {
+      carryBtn.disabled = false;
+      carrySkipBtn.disabled = false;
+      carryBtn.textContent = `Carry over ${lcStreak} days`;
+      carryError.textContent = 'Could not read your LeetCode streak. You can skip; your streak still counts from here on.';
+      carryError.classList.remove('hidden');
+    }
   });
 
-  let signedIn = null;
-  let username = null;
+  // Detect LeetCode sign-in + username.
   try {
-    const r = await fetch('https://leetcode.com/graphql/', {
+    const r = await fetch(LC_GRAPHQL, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -45,8 +92,31 @@
     return;
   }
 
+  // Greet by name (set via textContent so a username can't inject markup).
+  if (username) {
+    verifyTitle.textContent = '';
+    verifyTitle.append('Hi ');
+    const nm = document.createElement('span');
+    nm.className = 'name';
+    nm.textContent = username;
+    verifyTitle.append(nm, ', one last step');
+  }
   verifyBtn.textContent = `Verify as @${username}`;
   verifyBtn.disabled = false;
+
+  // Best-effort streak read to decide whether the carry-over page appears.
+  try {
+    const sr = await fetch(LC_GRAPHQL, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: 'query getStreakCounter { streakCounter { streakCount } }', operationName: 'getStreakCounter', variables: {} }),
+    });
+    const sj = await sr.json();
+    lcStreak = sj?.data?.streakCounter?.streakCount || 0;
+  } catch (e) {
+    lcStreak = 0;
+  }
 
   verifyBtn.addEventListener('click', async () => {
     verifyBtn.disabled = true;
@@ -74,9 +144,7 @@
 
     verifyBtn.innerHTML = '<span class="spinner"></span> Writing skill tag…';
 
-    const resp = await browser.runtime.sendMessage(
-      { action: 'verifyBio', nonce, expectedUsername: username }
-    )
+    const resp = await browser.runtime.sendMessage({ action: 'verifyBio', nonce, expectedUsername: username })
       .then((r) => r || { ok: false, error: 'no_response' })
       .catch(() => ({ ok: false, error: 'no_response' }));
 
@@ -99,20 +167,6 @@
       await browser.storage.local.set({ leetsquad_cloud_sync_api_key: resp.api_key });
     }
 
-    verifyBtn.textContent = 'Verified ✓';
-    verifyBtn.disabled = true;
-    skipBtn.classList.add('hidden');
-    postVerify?.classList.remove('hidden');
-
-    carryStreakBtn?.addEventListener('click', async () => {
-      carryStreakBtn.disabled = true;
-      carryStreakBtn.innerHTML = '<span class="spinner"></span> Carrying over…';
-      const r = await browser.runtime.sendMessage({ action: 'carryOverStreak', username })
-        .then((x) => x || { ok: false })
-        .catch(() => ({ ok: false }));
-      carryStreakBtn.textContent = r.ok
-        ? (r.streak > 0 ? `Carried over ${r.streak}-day streak ✓` : 'No LeetCode streak found')
-        : 'Could not read streak';
-    });
+    advanceFromVerify();
   });
 })();

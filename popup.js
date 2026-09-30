@@ -1788,7 +1788,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         .then((r) => r || { ok: false })
         .catch(() => ({ ok: false }));
       if (resp.ok) {
-        showToast(resp.streak > 0 ? `Carried over a ${resp.streak}-day streak` : 'No LeetCode streak found');
+        if (resp.streak > 0) {
+          // Report the resulting streak, not LeetCode's number, so a smaller carry never looks like a downgrade.
+          const goal = await StorageManager.getDailyGoals();
+          const now = goal.streak || 0;
+          showToast(resp.applied > 0 ? `Carried over, you're on a ${now}-day streak` : `You're already on a ${now}-day streak`);
+        } else {
+          showToast('No LeetCode streak found');
+        }
         updateDailyGoal();
         browser.runtime.sendMessage({ action: 'syncDailyGoals' });
       } else {

@@ -9,48 +9,55 @@
 <body>
   <main class="welcome">
     <img src="icons/logo.png" alt="LeetSquad" class="logo">
-    <h1>Welcome to LeetSquad</h1>
-    <p class="lede">
-      You can already see which friends solved each LeetCode problem, who's ahead on the leaderboard,
-      and how you stack up, anonymously, no setup required.
-    </p>
+    <h1>Welcome to Leet<span class="sq">Squad</span></h1>
 
     <section class="card">
-      <h2>One last step (optional)</h2>
-      <p>
-        To publish <em>your</em> solved-problem list so friends see your historical solves instantly,
-        we need to verify you own this LeetCode account.
-      </p>
-      <ul class="how">
-        <li>A one-off skill tag is briefly added to your public profile.</li>
-        <li>Our server reads it from your public profile.</li>
-        <li>The tag is removed immediately, and your other skills stay intact.</li>
-        <li>Total time: about 3 seconds. <a href="https://leetsquad.miro.build/terms" target="_blank" rel="noopener">Terms</a>.</li>
-      </ul>
-
-      <div id="signin-warning" class="warning hidden">
-        Sign in to <a href="https://leetcode.com/accounts/login/" target="_blank" rel="noopener">leetcode.com</a> first, then refresh this page.
-      </div>
-      <div id="error" class="error hidden"></div>
-
-      <div class="actions">
-        <button id="verify-btn" class="btn primary" disabled>Checking LeetCode sign-in…</button>
-        <button id="skip-btn" class="btn secondary">Skip for now</button>
-      </div>
-
-      <div id="post-verify" class="hidden">
-        <p class="footnote">
-          Your LeetSquad streak counts each day you solve at least one problem while using LeetSquad.
-          LeetCode's own streak counts its daily challenge. Carry over uses your current LeetCode streak as a starting point.
+      <!-- Page 1: verify -->
+      <div class="page on" id="page-verify">
+        <h2 id="verify-title">One last step</h2>
+        <p>
+          To publish <em>your</em> solved-problem list so friends see your historical solves
+          instantly, we need to verify you own this LeetCode account.
         </p>
+        <ul class="how">
+          <li>A one-off skill tag is briefly added to your public profile.</li>
+          <li>Our server reads it from your public profile.</li>
+          <li>The tag is removed immediately, and your other skills stay intact.</li>
+          <li>Total time: about 3 seconds. <a href="https://leetsquad.miro.build/terms" target="_blank" rel="noopener">Terms</a>.</li>
+        </ul>
+
+        <div id="signin-warning" class="warning hidden">
+          Sign in to <a href="https://leetcode.com/accounts/login/" target="_blank" rel="noopener">leetcode.com</a> first, then refresh this page.
+        </div>
+        <div id="error" class="error hidden"></div>
+
         <div class="actions">
-          <button id="carry-streak-btn" class="btn secondary">Carry over LeetCode streak</button>
-          <button id="open-ext-btn" class="btn primary">Open LeetSquad</button>
+          <button id="skip-btn" class="btn skip">Skip</button>
+          <button id="verify-btn" class="btn primary" disabled>Checking LeetCode sign-in…</button>
+        </div>
+        <p class="footnote">You can verify later from the popup's Cloud Sync settings.</p>
+      </div>
+
+      <!-- Page 2: carry over (shown only when a LeetCode streak exists) -->
+      <div class="page" id="page-carry">
+        <h2>Bring your streak with you</h2>
+        <p>Your LeetSquad streak counts every day you solve a problem. Carry over your <b><span id="carry-days">0</span> day</b> LeetCode daily challenge streak.</p>
+        <div id="carry-error" class="error hidden"></div>
+        <div class="actions">
+          <button id="carry-skip-btn" class="btn skip">Skip</button>
+          <button id="carry-btn" class="btn fire">Carry over <span id="carry-btn-days">0</span> days</button>
         </div>
       </div>
 
-      <p class="footnote">You can verify later from the popup's Cloud Sync settings.</p>
-      <p class="footnote">Tip: pin the LeetSquad icon in your browser toolbar for one-click access.</p>
+      <!-- Page 3: all set -->
+      <div class="page" id="page-done">
+        <h2>You're all set</h2>
+        <p>Jump in and see where you land on your squad's leaderboard.</p>
+        <div class="actions">
+          <button id="open-ext-btn" class="btn primary full">Open LeetSquad</button>
+        </div>
+        <p class="footnote">Tip: pin the LeetSquad icon in your toolbar for one-click access.</p>
+      </div>
     </section>
   </main>
 

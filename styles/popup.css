@@ -2,10 +2,10 @@
 /* Color scheme matches LeetCode's dark theme */
 
 :root {
-  --bg-primary: #1a1a1a;
-  --bg-secondary: #282828;
-  --bg-tertiary: #333333;
-  --bg-hover: #3d3d3d;
+  --bg-primary: #0f0f0f;
+  --bg-secondary: #202020;
+  --bg-tertiary: #2c2c2c;
+  --bg-hover: #383838;
   --accent: #ffa116;
   --accent-light: #ffb84d;
   --accent-gradient: linear-gradient(135deg, #ffa116 0%, #ffb84d 100%);
@@ -759,11 +759,11 @@ a:hover { opacity: 0.85; }
 
 /* New solve reads lighter; a repeat solve reads darker. No left rule. */
 .activity-item.first-solve {
-  background: #2f2f2f;
+  background: #2c2c2c;
 }
 
 .activity-item.additional-solve {
-  background: #202020;
+  background: #171717;
 }
 
 .activity-avatar {
