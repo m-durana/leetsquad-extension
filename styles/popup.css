@@ -3,9 +3,9 @@
 
 :root {
   --bg-primary: #0f0f0f;
-  --bg-secondary: #202020;
-  --bg-tertiary: #2c2c2c;
-  --bg-hover: #383838;
+  --bg-secondary: #1a1a1a;
+  --bg-tertiary: #262626;
+  --bg-hover: #333333;
   --accent: #ffa116;
   --accent-light: #ffb84d;
   --accent-gradient: linear-gradient(135deg, #ffa116 0%, #ffb84d 100%);
@@ -759,11 +759,11 @@ a:hover { opacity: 0.85; }
 
 /* New solve reads lighter; a repeat solve reads darker. No left rule. */
 .activity-item.first-solve {
-  background: #2c2c2c;
+  background: #262626;
 }
 
 .activity-item.additional-solve {
-  background: #171717;
+  background: #161616;
 }
 
 .activity-avatar {
@@ -2042,6 +2042,11 @@ body.preload .toggle-slider:before {
 }
 
 body:has(.settings-panel:not(.hidden)) #verify-banner { display: none !important; }
+
+/* An open settings panel overlays the app (position:absolute), so it would otherwise inherit
+   the height of whatever short tab was underneath. Force full height so it never looks cramped. */
+body:has(.settings-panel:not(.hidden)),
+body:has(.settings-panel:not(.hidden)) .app { min-height: 500px; }
 
 #cloud-sync-status:not(.hidden) {
   margin-top: 12px;

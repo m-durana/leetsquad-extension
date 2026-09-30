@@ -40,7 +40,17 @@ firefoxManifest.background = {
   scripts: ['browser-polyfill.js', 'shared.js', 'storage.js', 'achievements.js', 'background.js'],
 };
 firefoxManifest.browser_specific_settings = {
-  gecko: { id: 'leetsquad@miro.build', strict_min_version: '128.0' },
+  gecko: {
+    id: 'leetsquad@miro.build',
+    strict_min_version: '140.0',
+    data_collection_permissions: {
+      required: ['none'],
+      optional: ['websiteActivity'],
+    },
+  },
+  gecko_android: {
+    strict_min_version: '142.0',
+  },
 };
 
 rmSync(OUT_CHROME, { recursive: true, force: true });
