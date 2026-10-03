@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LeetSquad",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Track your friends' LeetCode progress, compete on leaderboards, and stay accountable together. See who solved each problem right on the page!",
   "permissions": [
     "storage",

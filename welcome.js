@@ -1,5 +1,6 @@
 (async () => {
   const LC_GRAPHQL = 'https://leetcode.com/graphql/';
+  const LOGIN_URL = 'https://leetcode.com/accounts/login/';
 
   const pageIds = { verify: 'page-verify', carry: 'page-carry', done: 'page-done' };
   function showPage(name) {
@@ -20,11 +21,10 @@
 
   const openExtBtn = document.getElementById('open-ext-btn');
 
-  let signedIn = false, username = null, lcStreak = 0;
+  let username = null, lcStreak = 0, watchingReturn = false;
 
   const markDone = () => browser.storage.local.set({ leetsquad_welcome_skipped: Date.now() });
 
-  // After verify or skip on page 1: go to the carry page only if there's a streak, else straight to done.
   function advanceFromVerify() {
     if (lcStreak > 0) {
       carryDays.textContent = lcStreak;
@@ -35,7 +35,46 @@
     }
   }
 
-  // openPopup needs a user gesture and is unsupported on older browsers; fall back to a toolbar hint.
+  function setGreeting() {
+    if (!username) return;
+    verifyTitle.textContent = '';
+    verifyTitle.append('Hi ');
+    const nm = document.createElement('span');
+    nm.className = 'name';
+    nm.textContent = username;
+    verifyTitle.append(nm, ', one last step');
+  }
+
+  async function fetchUserStatus() {
+    try {
+      const r = await fetch(LC_GRAPHQL, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: 'query { userStatus { isSignedIn username } }' }),
+      });
+      const j = await r.json();
+      return { signedIn: !!j?.data?.userStatus?.isSignedIn, username: j?.data?.userStatus?.username || null };
+    } catch (e) {
+      return { signedIn: false, username: null };
+    }
+  }
+
+  async function fetchStreak() {
+    try {
+      const r = await fetch(LC_GRAPHQL, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: 'query getStreakCounter { streakCounter { streakCount } }', operationName: 'getStreakCounter', variables: {} }),
+      });
+      const j = await r.json();
+      return j?.data?.streakCounter?.streakCount || 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+
   openExtBtn.addEventListener('click', async () => {
     try {
       await browser.action.openPopup();
@@ -70,58 +109,12 @@
     }
   });
 
-  // Detect LeetCode sign-in + username.
-  try {
-    const r = await fetch(LC_GRAPHQL, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: 'query { userStatus { isSignedIn username } }' }),
-    });
-    const j = await r.json();
-    signedIn = !!j?.data?.userStatus?.isSignedIn;
-    username = j?.data?.userStatus?.username || null;
-  } catch (e) {
-    signedIn = false;
-  }
-
-  if (!signedIn) {
-    warning.classList.remove('hidden');
-    verifyBtn.textContent = 'Verify (sign in first)';
-    verifyBtn.disabled = true;
-    return;
-  }
-
-  // Greet by name (set via textContent so a username can't inject markup).
-  if (username) {
-    verifyTitle.textContent = '';
-    verifyTitle.append('Hi ');
-    const nm = document.createElement('span');
-    nm.className = 'name';
-    nm.textContent = username;
-    verifyTitle.append(nm, ', one last step');
-  }
-  verifyBtn.textContent = `Verify as @${username}`;
-  verifyBtn.disabled = false;
-
-  // Best-effort streak read to decide whether the carry-over page appears.
-  try {
-    const sr = await fetch(LC_GRAPHQL, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: 'query getStreakCounter { streakCounter { streakCount } }', operationName: 'getStreakCounter', variables: {} }),
-    });
-    const sj = await sr.json();
-    lcStreak = sj?.data?.streakCounter?.streakCount || 0;
-  } catch (e) {
-    lcStreak = 0;
-  }
-
-  verifyBtn.addEventListener('click', async () => {
+  // The actual verification (skill-tag round trip), reused by the normal and the sign-in-then-verify flows.
+  async function runVerify() {
     verifyBtn.disabled = true;
     verifyBtn.innerHTML = '<span class="spinner"></span> Starting…';
     errorEl.classList.add('hidden');
+    warning.classList.add('hidden');
 
     let nonce;
     try {
@@ -168,5 +161,62 @@
     }
 
     advanceFromVerify();
-  });
+  }
+
+  function setupSignedIn() {
+    setGreeting();
+    verifyBtn.textContent = `Verify as @${username}`;
+    verifyBtn.disabled = false;
+    verifyBtn.onclick = runVerify;
+  }
+
+  // When the user comes back to this tab after the LeetCode login tab, re-check and auto-verify.
+  async function onReturnFromLogin() {
+    if (document.visibilityState === 'hidden') return;
+    const st = await fetchUserStatus();
+    if (!st.signedIn) {
+      verifyBtn.textContent = 'Sign in on LeetCode & verify';
+      verifyBtn.disabled = false;
+      return;
+    }
+    document.removeEventListener('visibilitychange', onReturnFromLogin);
+    window.removeEventListener('focus', onReturnFromLogin);
+    watchingReturn = false;
+    username = st.username;
+    setupSignedIn();
+    lcStreak = await fetchStreak();
+    runVerify();
+  }
+
+  async function signInThenVerify() {
+    try {
+      await browser.tabs.create({ url: LOGIN_URL });
+    } catch (e) {
+      window.open(LOGIN_URL, '_blank', 'noopener');
+    }
+    if (!watchingReturn) {
+      watchingReturn = true;
+      document.addEventListener('visibilitychange', onReturnFromLogin);
+      window.addEventListener('focus', onReturnFromLogin);
+    }
+    verifyBtn.textContent = 'Waiting for LeetCode sign-in…';
+    warning.textContent = "Finish signing in on the LeetCode tab, then switch back here, we'll verify you automatically.";
+    warning.classList.remove('hidden');
+  }
+
+  function setupSignedOut() {
+    verifyBtn.textContent = 'Sign in on LeetCode & verify';
+    verifyBtn.disabled = false;
+    verifyBtn.onclick = signInThenVerify;
+  }
+
+  // Initial state.
+  const status = await fetchUserStatus();
+  username = status.username;
+  if (status.signedIn) {
+    lcStreak = await fetchStreak();
+    setupSignedIn();
+  } else {
+    setupSignedOut();
+  }
 })();
