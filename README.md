@@ -4,7 +4,7 @@ Browser extension that adds social features to LeetCode: see which friends solve
 
 ## Install
 
-[Chrome Web Store](#) · [Firefox Add-ons](#) · [Edge Add-ons](#)
+[Chrome Web Store](https://chromewebstore.google.com/detail/leetsquad/doeladkfajpnikpffdlofgilkjcfhmdl) · [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/leetsquad/) · [Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/leetsquad/jimpenhpgjnmjphogbnlhklkmackjnkb)
 
 ## Features
 
